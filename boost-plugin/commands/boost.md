@@ -15,11 +15,16 @@ Parse `$ARGUMENTS` into `action` (first word) and `rest` (everything after).
 
 ### Default (no action) → show current findings
 
+Run:
 ```bash
 bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs --chat
 ```
 
-`--chat` produces markdown that's already formatted for in-conversation display. **Print the stdout output verbatim** — do not re-parse, re-format, or add commentary on top. The binary owns the formatting (correct $ math against the uncached denominator, severity badges, apply hints). Re-rendering in the slash command is brittle and was the source of every formatting bug in the early plugin builds.
+Then **emit the captured stdout as your direct reply** — meaning, write the markdown content as your own text response, not as a tool-output block. Claude Code's UI collapses bash output blocks; printing the markdown as your reply makes the findings legible without the user having to expand.
+
+**Do not add anything else.** No preamble (*"Output from boost..."*, *"Here are your findings:"*). No summary or commentary at the end (*"The numbers are honest now..."*, *"From here you can..."*). No suggested follow-up commands beyond what boost itself already prints in its "More:" footer. The markdown boost emits is *complete* and self-contained — it has the spend, the findings, the apply hints, and the pointer to `yield` / `reskill`.
+
+If the user asked a separate question alongside `/boost:boost <action>`, answer that *after* the boost output, separated by a blank line.
 
 Exit code is 0 (this is the read-only audit; `--check` is the CI-gate variant that exits 1 on findings).
 

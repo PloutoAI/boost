@@ -67,7 +67,7 @@ export function renderPlain(
     lines.push(header("CLEAR WINS", totalSavingsPct, c));
     let i = 1;
     for (const f of clearWins) {
-      lines.push(formatRow(i++, f, summary.cost_last_7_days_usd, c));
+      lines.push(formatRow(i++, f, summary.uncached_cost_last_7_days_usd, c));
     }
     lines.push("");
   }
@@ -77,7 +77,7 @@ export function renderPlain(
     lines.push(header("TRADE-OFFS", tradeTotal, c));
     let i = clearWins.length + 1;
     for (const f of tradeOffs) {
-      lines.push(formatRow(i++, f, summary.cost_last_7_days_usd, c));
+      lines.push(formatRow(i++, f, summary.uncached_cost_last_7_days_usd, c));
     }
     lines.push("");
   }
@@ -160,6 +160,9 @@ function formatRow(idx: number, f: Finding, weeklyDollars: number | null, c: Cha
     pct !== null && weeklyDollars !== null && pct > 0
       ? ` · ${c.dim(`≈${formatUsd((pct / 100) * weeklyDollars)}/wk`)}`
       : "";
+  // weeklyDollars passed in is the *uncached* bill — using total bill
+  // would overstate because cache-read $ dominates total but doesn't
+  // shrink at detector pct (detector pcts are against uncached tokens).
   return `  ${idx}. ${f.title.padEnd(40).slice(0, 40)} ${sevTag} ${pctText}${dollarsText}`;
 }
 

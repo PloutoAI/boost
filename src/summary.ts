@@ -29,6 +29,16 @@ export type Summary = {
    * pricing. Null if no recognised models — never silently 0.
    */
   cost_last_7_days_usd: number | null;
+  /**
+   * Uncached share of the total bill — input + output + cache_creation
+   * priced per model, excluding cache reads. This is the right denominator
+   * for "% saved" projections from detectors, since detector percentages
+   * are computed against `uncachedTokensLastNDays`. Multiplying a detector
+   * percentage by `cost_last_7_days_usd` overstates because cache reads
+   * dominate the total bill but don't shrink at the same rate as uncached
+   * spend.
+   */
+  uncached_cost_last_7_days_usd: number | null;
   rate_limit_pressure: RateLimitPressure;
 };
 
@@ -68,11 +78,41 @@ export function summarize(db: BunDatabase, totalPredictedPct: number): Summary {
     sessions_last_7_days: sessions?.c ?? 0,
     total_predicted_savings_pct: Math.round(totalPredictedPct),
     cost_last_7_days_usd: costLastNDays(db, 7),
+    uncached_cost_last_7_days_usd: uncachedCostLastNDays(db, 7),
   };
   return {
     ...summaryBase,
     rate_limit_pressure: rateLimitPressure(db, summaryBase),
   };
+}
+
+/**
+ * Sum of input + output + cache_creation costs (i.e. excluding cache
+ * reads). The "uncached bill" — the right denominator for projecting
+ * dollar savings from detectors whose percentages are measured against
+ * uncached tokens.
+ */
+export function uncachedCostLastNDays(db: BunDatabase, days: number): number | null {
+  const usage = modelUsageLastNDays(db, days);
+  if (usage.length === 0) return null;
+  let total = 0;
+  let priced = false;
+  for (const u of usage) {
+    const dollars = dollarsFor(
+      {
+        input: u.inputTokens,
+        output: u.outputTokens,
+        cache_creation: u.cacheCreationTokens,
+        cache_read: 0,
+      },
+      u.model,
+    );
+    if (dollars !== null) {
+      total += dollars;
+      priced = true;
+    }
+  }
+  return priced ? total : null;
 }
 
 /**

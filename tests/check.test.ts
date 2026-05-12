@@ -13,6 +13,7 @@ const HAS_DATA: Summary = {
   sessions_last_7_days: 3,
   total_predicted_savings_pct: 0,
   cost_last_7_days_usd: null,
+  uncached_cost_last_7_days_usd: null,
   rate_limit_pressure: { level: "low", score: 10, drivers: [] },
 };
 

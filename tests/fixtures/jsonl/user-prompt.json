@@ -1,0 +1,14 @@
+{
+  "parentUuid": "b1b2b3b4-1111-2222-3333-000000000004",
+  "isSidechain": false,
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-tools",
+  "type": "user",
+  "message": {
+    "role": "user",
+    "content": "redacted prompt body (boost never reads this)"
+  },
+  "promptId": "prompt-xyz",
+  "uuid": "c1c2c3c4-1111-2222-3333-000000000005",
+  "timestamp": "2026-05-01T14:00:01.000Z"
+}

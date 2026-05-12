@@ -1,0 +1,25 @@
+{
+  "parentUuid": null,
+  "isSidechain": false,
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-tools",
+  "type": "assistant",
+  "message": {
+    "id": "msg_tools_001",
+    "role": "assistant",
+    "model": "claude-opus-4-6",
+    "content": [
+      { "type": "text", "text": "let me read that" },
+      { "type": "tool_use", "id": "toolu_01", "name": "Read", "input": {} },
+      { "type": "tool_use", "id": "toolu_02", "name": "mcp__github-mcp__list_issues", "input": {} }
+    ],
+    "stop_reason": "tool_use",
+    "usage": {
+      "input_tokens": 1,
+      "output_tokens": 1,
+      "cache_creation": { "ephemeral_5m_input_tokens": 0, "ephemeral_1h_input_tokens": 0 }
+    }
+  },
+  "uuid": "b1b2b3b4-1111-2222-3333-000000000004",
+  "timestamp": "2026-05-01T14:00:00.000Z"
+}

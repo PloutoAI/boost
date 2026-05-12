@@ -1,0 +1,26 @@
+{
+  "parentUuid": "9c4ea6f6-1111-2222-3333-444444444444",
+  "isSidechain": true,
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-subagent",
+  "type": "assistant",
+  "message": {
+    "id": "msg_sub_001",
+    "role": "assistant",
+    "model": "claude-haiku-4-5",
+    "content": [],
+    "stop_reason": "tool_use",
+    "usage": {
+      "input_tokens": 5,
+      "output_tokens": 20,
+      "cache_read_input_tokens": 100,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 50,
+        "ephemeral_1h_input_tokens": 0
+      }
+    }
+  },
+  "requestId": "req_subagent_001",
+  "uuid": "a1a2a3a4-bbbb-cccc-dddd-000000000003",
+  "timestamp": "2026-05-01T13:00:00.000Z"
+}

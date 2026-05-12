@@ -1,0 +1,13 @@
+{
+  "parentUuid": "f85ad6b8-0e3b-4f8a-a5c4-076c3660b55a",
+  "isSidechain": false,
+  "type": "system",
+  "subtype": "turn_duration",
+  "durationMs": 130499,
+  "messageCount": 66,
+  "timestamp": "2026-04-13T19:26:42.008Z",
+  "uuid": "3dfeaaae-c02b-42f1-9909-c6cc3628a42a",
+  "isMeta": false,
+  "entrypoint": "cli",
+  "sessionId": "844495ca-209b-4817-910a-11cc42198aa2"
+}

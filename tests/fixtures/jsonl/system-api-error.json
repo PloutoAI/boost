@@ -1,0 +1,15 @@
+{
+  "parentUuid": "673ed938-ebda-46f0-a0cc-4ec21bd0abb1",
+  "isSidechain": false,
+  "type": "system",
+  "subtype": "api_error",
+  "level": "error",
+  "error": {},
+  "retryInMs": 509.9079657636842,
+  "retryAttempt": 1,
+  "maxRetries": 10,
+  "timestamp": "2026-04-08T06:49:11.046Z",
+  "uuid": "7a9d7ca3-196f-463f-8f56-4517ec1a962b",
+  "entrypoint": "cli",
+  "sessionId": "5d305b05-6b62-4890-a8b3-3fd51a465884"
+}

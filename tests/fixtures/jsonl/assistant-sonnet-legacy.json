@@ -1,0 +1,22 @@
+{
+  "parentUuid": "00000000-1111-2222-3333-555555555555",
+  "isSidechain": false,
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-legacy",
+  "type": "assistant",
+  "message": {
+    "id": "msg_legacy_001",
+    "role": "assistant",
+    "model": "claude-sonnet-4-5",
+    "content": [],
+    "stop_reason": "end_turn",
+    "usage": {
+      "input_tokens": 10,
+      "cache_creation_input_tokens": 200,
+      "cache_read_input_tokens": 9000,
+      "output_tokens": 50
+    }
+  },
+  "uuid": "f1f2f3f4-0000-1111-2222-000000000002",
+  "timestamp": "2026-01-01T08:00:00.000Z"
+}

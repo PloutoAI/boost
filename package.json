@@ -1,0 +1,70 @@
+{
+  "name": "@PloutoAI/boost",
+  "version": "0.1.0",
+  "description": "Local-only optimization for Claude Code with audit, apply, backup, and revert.",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "tokens",
+    "cli",
+    "anthropic",
+    "mcp",
+    "optimization"
+  ],
+  "homepage": "https://github.com/PloutoAI/boost#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PloutoAI/boost.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PloutoAI/boost/issues"
+  },
+  "license": "MIT",
+  "author": "boost contributors",
+  "type": "module",
+  "bin": {
+    "boost": "./bin/boost.mjs"
+  },
+  "main": "./dist/cli.js",
+  "exports": {
+    ".": "./dist/cli.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts --outdir dist --target bun --minify && chmod +x dist/cli.js bin/boost.mjs",
+    "build:plugin": "bun run build && cp dist/cli.js boost-plugin/bin/boost.mjs && chmod +x boost-plugin/bin/boost.mjs",
+    "prepublishOnly": "bun run typecheck && bun test && bun run build",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "boost": "bun run src/cli.ts",
+    "charttui:demo": "bun run packages/charttui/examples/showcase.ts",
+    "charttui:sixel": "bun run packages/charttui/examples/sixel-pie.ts",
+    "charttui:native": "bun run packages/charttui/examples/native-demo.ts"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "jsonc-parser": "^3.3.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}

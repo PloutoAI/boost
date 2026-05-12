@@ -1,0 +1,21 @@
+{
+  "parentUuid": null,
+  "logicalParentUuid": "3c92682f-6f4b-4cea-a6b2-8f154bbd4e43",
+  "isSidechain": false,
+  "type": "system",
+  "subtype": "compact_boundary",
+  "content": "Conversation compacted",
+  "isMeta": false,
+  "timestamp": "2026-04-19T12:37:55.784Z",
+  "uuid": "ff76996b-604c-450e-97a4-ccfdd7671dda",
+  "level": "info",
+  "compactMetadata": {
+    "trigger": "manual",
+    "preTokens": 594341,
+    "preCompactDiscoveredTools": ["ExitPlanMode", "WebFetch", "WebSearch"],
+    "postTokens": 10241,
+    "durationMs": 142434
+  },
+  "entrypoint": "cli",
+  "sessionId": "844495ca-209b-4817-910a-11cc42198aa2"
+}

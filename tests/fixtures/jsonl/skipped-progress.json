@@ -1,0 +1,17 @@
+{
+  "parentUuid": "8bf8c0ce-2700-4cd5-8739-f6e642506655",
+  "isSidechain": false,
+  "userType": "external",
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-progress",
+  "type": "progress",
+  "data": {
+    "type": "hook_progress",
+    "hookEvent": "PreToolUse",
+    "hookName": "PreToolUse:ToolSearch",
+    "command": "callback"
+  },
+  "toolUseID": "toolu_01RCzQceNKwxMY5s6jiLWvUc",
+  "uuid": "9f000524-b70b-43c8-b296-000000000007",
+  "timestamp": "2026-05-01T15:00:00.000Z"
+}

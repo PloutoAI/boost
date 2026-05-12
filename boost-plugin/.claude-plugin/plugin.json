@@ -1,0 +1,23 @@
+{
+  "name": "boost",
+  "version": "0.1.0",
+  "description": "Local optimization loop for Claude Code — find token waste, apply reversible fixes.",
+  "author": {
+    "name": "Plouto",
+    "url": "https://plouto.ai"
+  },
+  "homepage": "https://github.com/plouto-dev/boost",
+  "repository": "https://github.com/plouto-dev/boost",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "optimization",
+    "audit",
+    "skills",
+    "mcp",
+    "tokens"
+  ],
+  "commands": [
+    "./commands/boost.md"
+  ]
+}

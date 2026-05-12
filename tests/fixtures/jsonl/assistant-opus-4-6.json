@@ -1,0 +1,41 @@
+{
+  "parentUuid": "55bd2103-110b-47ae-8f98-dc8bc65ed92c",
+  "isSidechain": false,
+  "userType": "external",
+  "cwd": "/Users/dev/proj",
+  "sessionId": "5d305b05-6b62-4890-a8b3-3fd51a465884",
+  "version": "2.1.73",
+  "gitBranch": "main",
+  "type": "assistant",
+  "message": {
+    "id": "msg_015uJyinQczJhS73qf3nKy3R",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-4-6",
+    "content": [{ "type": "text", "text": "ok" }],
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 3,
+      "cache_creation_input_tokens": 4724,
+      "cache_read_input_tokens": 12139,
+      "output_tokens": 53,
+      "server_tool_use": { "web_search_requests": 0, "web_fetch_requests": 0 },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 4724,
+        "ephemeral_5m_input_tokens": 0
+      },
+      "iterations": [
+        { "input_tokens": 3, "output_tokens": 53, "type": "message" },
+        { "input_tokens": 1, "output_tokens": 0, "type": "message" },
+        { "input_tokens": 2, "output_tokens": 5, "type": "message" }
+      ],
+      "speed": "standard"
+    }
+  },
+  "requestId": "req_011Ca2JtYkt9NyWiTL2",
+  "promptId": "prompt-abc",
+  "uuid": "e1e2e3e4-aaaa-bbbb-cccc-000000000001",
+  "timestamp": "2026-05-01T12:00:00.000Z"
+}

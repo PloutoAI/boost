@@ -1,0 +1,16 @@
+{
+  "parentUuid": "b1b2b3b4-1111-2222-3333-000000000004",
+  "isSidechain": false,
+  "cwd": "/Users/dev/proj",
+  "sessionId": "session-tools",
+  "type": "user",
+  "message": {
+    "role": "user",
+    "content": [
+      { "type": "tool_result", "tool_use_id": "toolu_01", "content": "file contents here (~120 bytes)" },
+      { "type": "tool_result", "tool_use_id": "toolu_02", "content": "error: not found", "is_error": true }
+    ]
+  },
+  "uuid": "d1d2d3d4-1111-2222-3333-000000000006",
+  "timestamp": "2026-05-01T14:00:02.000Z"
+}

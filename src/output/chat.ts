@@ -77,8 +77,14 @@ function findingLines(f: Finding, uncachedCost: number | null): string[] {
       : "";
   const out: string[] = [];
   out.push(`- **[${f.severity.toUpperCase()}]** ${f.title}${dollarHint}`);
-  if (f.fixes && f.fixes.length > 0) {
+  // Only suggest apply when boost will actually accept it. `safeToApply:
+  // false` findings have fixes but require manual review (e.g.,
+  // claude-md-bloat: stash + stub is destructive enough to deserve a
+  // confirmation step the CLI doesn't currently expose).
+  if (f.fixes && f.fixes.length > 0 && f.safeToApply) {
     out.push(`  → \`/boost:boost apply ${f.strategyId}\``);
+  } else if (f.fixes && f.fixes.length > 0) {
+    out.push(`  → reversible fix available; review with \`boost --json\` then apply via the CLI if you agree.`);
   }
   return out;
 }

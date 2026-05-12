@@ -1,0 +1,14 @@
+{
+  "name": "boost",
+  "owner": {
+    "name": "Plouto",
+    "url": "https://plouto.ai"
+  },
+  "plugins": [
+    {
+      "name": "boost",
+      "description": "Local optimization loop for Claude Code — find token waste, apply reversible fixes.",
+      "source": "./boost-plugin"
+    }
+  ]
+}

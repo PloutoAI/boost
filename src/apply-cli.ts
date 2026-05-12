@@ -19,6 +19,15 @@ import type { Finding } from "./types.ts";
 
 export type ApplyCommandOptions = {
   all?: boolean;
+  /**
+   * Read replacement content from stdin and substitute it as the
+   * `newContent` of the strategy's single modify-file fix. Lets a
+   * caller (typically a plugin slash command driving an LLM) supply
+   * smart content while boost still owns the backup + atomic write +
+   * operation record. Requires the strategy to emit exactly one
+   * modify-file fix; rejects multi-fix or non-file strategies.
+   */
+  contentFromStdin?: boolean;
   debug?: boolean;
 };
 
@@ -72,9 +81,57 @@ export async function applyCommand(
     process.stderr.write(`boost apply: ${strategyId} is advisory — no automated fix to apply.\n`);
     process.exit(2);
   }
+
+  if (opts.contentFromStdin) {
+    if (finding.fixes.length !== 1) {
+      process.stderr.write(
+        `boost apply --content-from-stdin: ${strategyId} has ${finding.fixes.length} fixes; only single-fix strategies support stdin content override.\n`,
+      );
+      process.exit(2);
+    }
+    const firstFix = finding.fixes[0];
+    if (firstFix?.kind !== "modify-file") {
+      process.stderr.write(
+        `boost apply --content-from-stdin: ${strategyId}'s fix is "${firstFix?.kind}", not "modify-file" — stdin override is only for content replacements.\n`,
+      );
+      process.exit(2);
+    }
+    const stdinContent = await readAllStdin();
+    if (stdinContent.length === 0) {
+      process.stderr.write(`boost apply --content-from-stdin: stdin was empty; refusing to write an empty file.\n`);
+      process.exit(2);
+    }
+    const overridden: Finding = {
+      ...finding,
+      fixes: [
+        {
+          kind: "modify-file",
+          payload: {
+            filePath: firstFix.payload.filePath,
+            newContent: stdinContent,
+          },
+        },
+      ] as unknown as Finding["fixes"],
+    };
+    await applyOne(db, overridden);
+    process.stdout.write(
+      `✓ applied ${strategyId}: ${finding.title} (${stdinContent.length} chars from stdin)\n`,
+    );
+    process.stdout.write(`(reversible: "boost revert" undoes it)\n`);
+    return;
+  }
+
   await applyOne(db, finding);
   process.stdout.write(`✓ applied ${finding.strategyId}: ${finding.title}\n`);
   process.stdout.write(`(reversible: "boost revert" undoes it)\n`);
+}
+
+async function readAllStdin(): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function applyOne(db: import("bun:sqlite").Database, finding: Finding): Promise<void> {

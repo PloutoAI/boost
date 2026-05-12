@@ -30,13 +30,45 @@ Exit code is 0 (this is the read-only audit; `--check` is the CI-gate variant th
 
 ### /boost apply <strategy-id>
 
-Apply a single finding by strategy ID.
-
+For most strategies, shell out:
 ```bash
 bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs apply $STRATEGY_ID
 ```
+Confirm the affected files on success; on failure (exit 2), surface stderr verbatim.
 
-If the apply succeeds, confirm to the user with the affected files. If it fails (exit 2), surface the stderr message verbatim — don't paraphrase.
+**Special case: `claude-md-bloat` — call Claude to do a real trim, not the dumb stash-and-stub.**
+
+The CLI's static apply for this strategy moves the user's CLAUDE.md to a backup and replaces it with a placeholder. That's theater — boost is supposed to *fix* the problem, not move it. Inside the plugin you have a Claude session right here; use it.
+
+Steps:
+
+1. **Read the original.** First check whether ~/.claude/CLAUDE.md still has the user's content (>200 words) or is already the stub (5 lines starting with `# CLAUDE.md (stub)`). If it's already the stub, find the most recent backup at `~/.boost/backups/*.bak` (sort by mtime) and read that as the source. Otherwise read `~/.claude/CLAUDE.md` directly.
+
+2. **Read recent session activity** for grounding — the user's actual coding patterns are evidence of which rules are load-bearing. Sample 1–2 recent JSONL files from `~/.claude/projects/`. Read ~50 lines each. Note which commands / tools / paths recur. (Don't dwell — this is signal, not the synthesis.)
+
+3. **Synthesize a real trim.** Goal: produce a CLAUDE.md the user would actually want loaded every session. Cut to ~1200–1500 words (Anthropic's recommended budget for a global file). Apply these rules:
+   - **Keep** rules with strong language ("Always", "Never", project-specific conventions), security/compliance items, the user's idiosyncratic taste calls (style preferences, em-dash bans, etc.)
+   - **Drop** generic best practices that any developer would already know (e.g., "Always use parameterized queries" is universal trivia, not personal context Claude needs reminded of)
+   - **Drop** dead repetitions (the original probably has the same block 4× — boost has seen this pattern in the wild)
+   - **Drop** rules contradicted by observed behaviour (if the README says "two-space indent" but you keep using four-space, the rule is dead)
+   - **Cluster** by topic — Style / Naming / Error handling / Security / Performance / etc. Lead with the strongest 2–3 sections.
+   - **Preserve voice** — if the user writes terse imperatives ("Always handle errors explicitly."), keep that. If they explain ("Always use parameterized queries to prevent SQL injection..."), keep that. Don't sanitize their tone.
+   - **No new content.** You're trimming, not rewriting. Every line in the output must trace to a line in the input.
+
+4. **Apply via boost's pipeline** so the change is recorded as a reversible Operation:
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs apply claude-md-bloat --content-from-stdin <<'EOF'
+   <your trimmed content here>
+   EOF
+   ```
+   boost takes a fresh backup of whatever's currently in ~/.claude/CLAUDE.md (so even if the user already applied the static stub, you can revert all the way back), atomically writes your new content, records an Operation. `boost revert` undoes either the smart trim or restores the original.
+
+5. **Brief the user.** Show: before / after word count, what categories you kept, what you dropped (one line each), and the path to the backup if they want to scan it manually. Tell them `boost revert` undoes this.
+
+**Hard constraints:**
+- Never include secrets, tokens, paths to credential files, or anything that looks sensitive that you saw in the original or in sessions.
+- Don't add rules that weren't in the original — this is a trim, not a regeneration.
+- If the original is <1500 words already, the detector shouldn't have fired; refuse and tell the user.
 
 ### /boost apply-all
 

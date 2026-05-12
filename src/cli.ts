@@ -100,8 +100,9 @@ program
   .command("apply [strategyId]")
   .description("Apply a finding's fix(es) by strategy ID, or use --all for every clear-win.")
   .option("--all", "apply every clear-win finding that has a fix")
+  .option("--content-from-stdin", "use stdin as the replacement content for a single modify-file fix (used by plugin LLM flows)")
   .option("--debug", "print full stack traces on errors")
-  .action(async (strategyId: string | undefined, opts: { all?: boolean; debug?: boolean }) => {
+  .action(async (strategyId: string | undefined, opts: { all?: boolean; contentFromStdin?: boolean; debug?: boolean }) => {
     try {
       await applyCommand(strategyId, opts);
     } catch (err) {

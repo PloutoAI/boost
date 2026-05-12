@@ -15,6 +15,13 @@ import type { Finding } from "./types.ts";
 
 export type ApplyCommandOptions = {
   all?: boolean;
+  /**
+   * Apply a finding whose `safeToApply` is false. boost still records a
+   * reversible Operation + backup; `safeToApply: false` is a "needs
+   * confirmation" gate, not a "can't be done" lock. `--force` is the
+   * user's confirmation.
+   */
+  force?: boolean;
   debug?: boolean;
 };
 
@@ -68,14 +75,19 @@ export async function applyCommand(
     process.stderr.write(`boost apply: ${strategyId} is advisory — no automated fix to apply.\n`);
     process.exit(2);
   }
-  if (!finding.safeToApply) {
+  if (!finding.safeToApply && !opts.force) {
     process.stderr.write(
-      `boost apply: ${strategyId} is not marked safe-to-apply. Inspect it in the audit first.\n`,
+      `boost apply: ${strategyId} is not marked safe-to-apply (the fix is destructive enough to deserve confirmation).\n`,
     );
+    process.stderr.write(`The fix IS reversible — boost records an Operation + backup; "boost revert" undoes it.\n`);
+    process.stderr.write(`Re-run with --force to apply: boost apply ${strategyId} --force\n`);
     process.exit(2);
   }
   await applyOne(db, finding);
   process.stdout.write(`✓ applied ${finding.strategyId}: ${finding.title}\n`);
+  if (!finding.safeToApply) {
+    process.stdout.write(`(applied with --force; undo with "boost revert")\n`);
+  }
 }
 
 async function applyOne(db: import("bun:sqlite").Database, finding: Finding): Promise<void> {

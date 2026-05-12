@@ -98,11 +98,7 @@ Recommended sections (drop any you don't have evidence for):
 
 - `# <project-name>` — one-line: what this project is, written so a fresh Claude session reading it understands within a sentence.
 - A short prose paragraph (2–4 sentences) on the project's purpose, stack, where the action is.
-- `## Commands` — use the live-injection feature for things that change:
-  ```
-  !`cd <project-path> && cat package.json 2>/dev/null | jq -r '.scripts // {}'`
-  ```
-  Hardcode commands only for stable conventions (e.g., `uv run` if the project uses uv).
+- `## Commands` — for dynamic content (package.json scripts, Makefile targets) use Claude Code's live-injection syntax: a backtick command preceded by a bang. Wrap the actual project path into it — never leave a placeholder, the SKILL.md must be ready to run. Example: in the body of a skill for `~/w/sandbox/velo`, you'd embed the literal text consisting of a bang, a backtick, then `cd /Users/.../velo && cat package.json | jq -r '.scripts'`, then a closing backtick. Hardcode commands only for stable conventions (e.g., `uv run` if the project uses uv).
 - `## Important files` — `Entry: …`, `Tests: …`, `Config: …`. Real paths from the repo, not placeholders.
 - `## Conventions` — terse rules drawn from the README and observed patterns. *"Use uv run for Python; never bare python."* Avoid bullet lists of trivia.
 - `## Gotchas` — only if observed evidence shows Claude repeatedly stumbling (failed bash commands, redundant Read calls, retry loops). Skip if nothing real to say.

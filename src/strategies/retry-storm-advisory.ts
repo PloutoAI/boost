@@ -57,7 +57,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "trade-offs",
   defaultSeverity: "low",
-  safeToApply: false,
 
   title: (f) => {
     const sig = f.evidence.signals as { storms?: number; hitMaxRetries?: boolean };
@@ -157,7 +156,6 @@ const strategy: StrategyDefinition = {
         strategyVersion: version,
         category: "trade-offs",
         severity,
-        safeToApply: false,
         title: "",
         affectedItems: [sessionId],
         // Retries don't bill tokens — they bill wall-clock. Keep token

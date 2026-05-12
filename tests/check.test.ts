@@ -30,7 +30,6 @@ function mkFinding(severity: Finding["severity"]): Finding {
     strategyVersion: 1,
     category: "trade-offs",
     severity,
-    safeToApply: false,
     title: `dummy ${severity}`,
     affectedItems: [],
     estimatedTokensSavedPerRequest: 0,

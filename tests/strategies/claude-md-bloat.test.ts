@@ -50,7 +50,6 @@ test("flags global CLAUDE.md when over threshold", () => {
   });
   const finding = singleFinding(strategy.detect(f.ctx));
   expect(finding.severity).toBe("high"); // 5000 > 4000 threshold
-  expect(finding.safeToApply).toBe(false); // advisory-only
   expect(finding.fixes!.length).toBe(1);
   expect(finding.fixes![0].kind).toBe("modify-file");
   expect(finding.affectedItems).toEqual([fs.realpathSync(globalPath)]);

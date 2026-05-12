@@ -8,7 +8,6 @@ function f(over: Partial<Finding>): Finding {
     strategyVersion: 1,
     category: over.category ?? "clear-wins",
     severity: over.severity ?? "medium",
-    safeToApply: true,
     title: "t",
     affectedItems: [],
     estimatedTokensSavedPerRequest: 0,

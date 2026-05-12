@@ -75,7 +75,6 @@ test("flags advisory when one model dominates ≥ 80% of uncached spend", () => 
   expect(finding.affectedItems[0]).toContain("opus");
   expect(finding.severity).toBe("medium"); // 90% < 95% threshold for high
   expect(finding.fixes).toBeUndefined(); // advisory: no fixes
-  expect(finding.safeToApply).toBe(false);
   const sig = finding.evidence.signals as { breakdown: Array<{ model: string }>; dominantSharePct: number };
   expect(sig.breakdown.length).toBeGreaterThanOrEqual(2);
   expect(sig.dominantSharePct).toBeGreaterThan(80);

@@ -51,7 +51,6 @@ export type StrategyDefinition = {
   version: number;
   category: "clear-wins" | "trade-offs";
   defaultSeverity: "high" | "medium" | "low";
-  safeToApply: boolean;
   /** Headline rendered in the list; called per-finding so it can incorporate counts. */
   title: (finding: Finding) => string;
   /**

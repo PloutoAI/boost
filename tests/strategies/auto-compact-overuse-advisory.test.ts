@@ -76,7 +76,6 @@ test("flags a session with exactly 3 compacts → low severity", () => {
   expect(findings.length).toBe(1);
   expect(findings[0]!.affectedItems).toEqual(["s1"]);
   expect(findings[0]!.severity).toBe("low");
-  expect(findings[0]!.safeToApply).toBe(false);
   expect(findings[0]!.fixes).toBeUndefined();
   const sig = findings[0]!.evidence.signals as {
     compacts: number;

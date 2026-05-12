@@ -23,8 +23,6 @@ export type Finding = {
   strategyVersion: number;
   category: Category;
   severity: Severity;
-  /** True if `apply` is reasonable as a one-keystroke action. */
-  safeToApply: boolean;
   /** Human-readable headline, e.g. `"Disable 3 unused MCP servers"`. */
   title: string;
   /** Names referenced by the fix; surfaced in detail view and JSON. */

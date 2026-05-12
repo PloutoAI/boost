@@ -44,7 +44,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "trade-offs",
   defaultSeverity: "low",
-  safeToApply: false,
 
   title: (f) => {
     const sig = f.evidence.signals as { compacts?: number; totalPreTokens?: number };
@@ -109,7 +108,6 @@ function buildFinding(now: Date, s: SessionCompactBreakdown): Finding {
     strategyVersion: version,
     category: "trade-offs",
     severity,
-    safeToApply: false,
     title: "",
     affectedItems: [s.sessionId],
     estimatedTokensSavedPerRequest: 0,

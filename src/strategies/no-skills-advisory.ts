@@ -34,7 +34,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "trade-offs",
   defaultSeverity: "low",
-  safeToApply: false,
 
   title: () => "No skills installed — run `boost reskill` for suggestions",
 
@@ -50,7 +49,6 @@ const strategy: StrategyDefinition = {
       strategyVersion: version,
       category: "trade-offs",
       severity: "low",
-      safeToApply: false,
       title: "",
       affectedItems: [],
       estimatedTokensSavedPerRequest: 0,

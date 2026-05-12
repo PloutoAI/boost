@@ -3,7 +3,11 @@
  *
  * Two shapes:
  *   - boost apply <strategy-id>   apply every fix on that finding
- *   - boost apply --all           apply every safe-to-apply clear-win
+ *   - boost apply --all           apply every clear-win finding that has a fix
+ *
+ * Every applied fix is reversible (operation + backup recorded; `boost
+ * revert` restores). There is no "destructive but reversible" middle
+ * tier — the apply/revert primitives provide safety; trust them.
  *
  * The race-check field (`observed`) is omitted because the CLI flow is
  * see-findings → run-apply, not interactive. Users wanting full race
@@ -15,13 +19,6 @@ import type { Finding } from "./types.ts";
 
 export type ApplyCommandOptions = {
   all?: boolean;
-  /**
-   * Apply a finding whose `safeToApply` is false. boost still records a
-   * reversible Operation + backup; `safeToApply: false` is a "needs
-   * confirmation" gate, not a "can't be done" lock. `--force` is the
-   * user's confirmation.
-   */
-  force?: boolean;
   debug?: boolean;
 };
 
@@ -34,7 +31,7 @@ export async function applyCommand(
 
   if (opts.all) {
     const candidates = runner.findings.filter(
-      (f) => f.category === "clear-wins" && f.safeToApply && (f.fixes?.length ?? 0) > 0,
+      (f) => f.category === "clear-wins" && (f.fixes?.length ?? 0) > 0,
     );
     if (candidates.length === 0) {
       process.stdout.write("No clear-win findings to apply.\n");
@@ -52,7 +49,7 @@ export async function applyCommand(
         process.stderr.write(`✗ ${finding.strategyId}: ${(err as Error).message}\n`);
       }
     }
-    process.stdout.write(`\n${applied} applied, ${failed} failed.\n`);
+    process.stdout.write(`\n${applied} applied, ${failed} failed. Undo any with \"boost revert\".\n`);
     if (failed > 0) process.exit(1);
     return;
   }
@@ -75,19 +72,9 @@ export async function applyCommand(
     process.stderr.write(`boost apply: ${strategyId} is advisory — no automated fix to apply.\n`);
     process.exit(2);
   }
-  if (!finding.safeToApply && !opts.force) {
-    process.stderr.write(
-      `boost apply: ${strategyId} is not marked safe-to-apply (the fix is destructive enough to deserve confirmation).\n`,
-    );
-    process.stderr.write(`The fix IS reversible — boost records an Operation + backup; "boost revert" undoes it.\n`);
-    process.stderr.write(`Re-run with --force to apply: boost apply ${strategyId} --force\n`);
-    process.exit(2);
-  }
   await applyOne(db, finding);
   process.stdout.write(`✓ applied ${finding.strategyId}: ${finding.title}\n`);
-  if (!finding.safeToApply) {
-    process.stdout.write(`(applied with --force; undo with "boost revert")\n`);
-  }
+  process.stdout.write(`(reversible: "boost revert" undoes it)\n`);
 }
 
 async function applyOne(db: import("bun:sqlite").Database, finding: Finding): Promise<void> {

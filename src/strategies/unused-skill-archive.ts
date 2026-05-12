@@ -24,7 +24,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "clear-wins",
   defaultSeverity: "low",
-  safeToApply: true,
 
   title: (f) => `Archive ${f.affectedItems.length} unused skill${f.affectedItems.length === 1 ? "" : "s"}`,
 
@@ -99,7 +98,6 @@ const strategy: StrategyDefinition = {
       strategyVersion: version,
       category: "clear-wins",
       severity: candidates.length >= 5 ? "medium" : "low",
-      safeToApply: true,
       title: "",
       affectedItems: candidates.map((s) => s.name),
       estimatedTokensSavedPerRequest: tokensPerRequest,

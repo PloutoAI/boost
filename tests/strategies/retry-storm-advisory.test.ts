@@ -90,7 +90,6 @@ test("flags one storm in one session — returns a one-element array", () => {
   const fnd = findings[0]!;
   expect(fnd.affectedItems).toEqual(["s1"]);
   expect(fnd.severity).toBe("low"); // single storm, < 60s wait, no cap hit
-  expect(fnd.safeToApply).toBe(false);
   expect(fnd.fixes).toBeUndefined();
   const sig = fnd.evidence.signals as { storms: number; totalRetries: number; hitMaxRetries: boolean };
   expect(sig.storms).toBe(1);

@@ -40,7 +40,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "clear-wins",
   defaultSeverity: "high",
-  safeToApply: true,
 
   title: (f) =>
     `Disable ${f.affectedItems.length} unused MCP server${f.affectedItems.length === 1 ? "" : "s"}`,
@@ -88,7 +87,6 @@ const strategy: StrategyDefinition = {
       strategyVersion: version,
       category: "clear-wins",
       severity: candidates.length >= 3 ? "high" : "medium",
-      safeToApply: true,
       title: "",
       affectedItems: candidates.map((s) => s.name),
       estimatedTokensSavedPerRequest: tokensPerRequest,

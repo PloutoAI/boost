@@ -99,10 +99,9 @@ program
 program
   .command("apply [strategyId]")
   .description("Apply a finding's fix(es) by strategy ID, or use --all for every clear-win.")
-  .option("--all", "apply every safe-to-apply clear-win finding")
-  .option("--force", "apply even when the finding's safeToApply is false (still reversible via boost revert)")
+  .option("--all", "apply every clear-win finding that has a fix")
   .option("--debug", "print full stack traces on errors")
-  .action(async (strategyId: string | undefined, opts: { all?: boolean; force?: boolean; debug?: boolean }) => {
+  .action(async (strategyId: string | undefined, opts: { all?: boolean; debug?: boolean }) => {
     try {
       await applyCommand(strategyId, opts);
     } catch (err) {

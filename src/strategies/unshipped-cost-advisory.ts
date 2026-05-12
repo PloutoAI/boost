@@ -44,7 +44,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "trade-offs",
   defaultSeverity: "medium",
-  safeToApply: false,
 
   title: (f) => {
     const sig = f.evidence.signals as { costUsd?: number; cwds?: string[] };
@@ -132,7 +131,6 @@ function buildFinding(now: Date, s: SessionCostBreakdown): Finding {
     strategyVersion: version,
     category: "trade-offs",
     severity,
-    safeToApply: false,
     title: "",
     affectedItems: [s.sessionId],
     estimatedTokensSavedPerRequest: 0,

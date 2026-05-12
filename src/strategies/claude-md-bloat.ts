@@ -7,9 +7,10 @@
  * teammates' guardrails. We deliberately leave project-level CLAUDE.md
  * alone in v0.1 and surface the count for awareness only.
  *
- * `safeToApply: false` — the fix is reversible, but stash-and-stub is
- * destructive enough that one-keystroke apply is wrong. The TUI can still
- * apply with confirmation; this just keeps it out of `tidy-ups`.
+ * Reversible: the apply path takes a backup of the original CLAUDE.md
+ * to `~/.boost/backups/` and records an Operation. `boost revert`
+ * restores. Trust the reversibility primitives — every applied fix
+ * in boost is safe in the sense that matters (recoverable).
  */
 import type { Finding, Fix } from "../types.ts";
 import type { StrategyDefinition } from "../strategy.ts";
@@ -41,7 +42,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "clear-wins",
   defaultSeverity: "medium",
-  safeToApply: false,
 
   title: (f) => {
     const total = (f.evidence.signals as { totalWords?: number }).totalWords ?? 0;
@@ -99,7 +99,6 @@ const strategy: StrategyDefinition = {
       strategyVersion: version,
       category: "clear-wins",
       severity,
-      safeToApply: false,
       title: "",
       affectedItems: [globalFile.path],
       estimatedTokensSavedPerRequest: tokensPerRequest,

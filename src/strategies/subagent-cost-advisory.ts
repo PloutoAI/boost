@@ -43,7 +43,6 @@ const strategy: StrategyDefinition = {
   version,
   category: "trade-offs",
   defaultSeverity: "medium",
-  safeToApply: false,
 
   title: (f) => {
     const sig = f.evidence.signals as { sharePct?: number; sidechainTokens?: number };
@@ -112,7 +111,6 @@ function buildFinding(now: Date, s: SessionSidechainBreakdown): Finding {
     strategyVersion: version,
     category: "trade-offs",
     severity,
-    safeToApply: false,
     title: "",
     affectedItems: [s.sessionId],
     estimatedTokensSavedPerRequest: 0,

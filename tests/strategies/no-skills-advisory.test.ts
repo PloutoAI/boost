@@ -77,7 +77,6 @@ test("flags when active user has zero skills installed", () => {
   expect(result).not.toBeNull();
   const finding = Array.isArray(result) ? result[0]! : result!;
   expect(finding.severity).toBe("low");
-  expect(finding.safeToApply).toBe(false);
   expect(finding.fixes).toBeUndefined(); // advisory only
   expect(finding.affectedItems).toEqual([]);
   expect(finding.title.toLowerCase()).toContain("reskill");

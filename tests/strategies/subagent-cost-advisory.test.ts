@@ -155,7 +155,6 @@ test("flags a session where sidechain is ~40% of uncached → medium severity", 
   expect(findings.length).toBe(1);
   expect(findings[0]!.affectedItems).toEqual(["s1"]);
   expect(findings[0]!.severity).toBe("medium");
-  expect(findings[0]!.safeToApply).toBe(false);
   expect(findings[0]!.fixes).toBeUndefined();
   const sig = findings[0]!.evidence.signals as {
     sharePct: number;

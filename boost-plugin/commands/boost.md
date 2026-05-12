@@ -16,10 +16,17 @@ Parse `$ARGUMENTS` into `action` (first word) and `rest` (everything after).
 ### Default (no action) → show current findings
 
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs --check
+bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs --json
 ```
 
-Then explain the findings to the user concisely. For each medium-or-above finding, suggest the exact `/boost apply <id>` command they can run next.
+This **always exits 0** (unlike `--check`, which is the CI-gate variant and exits 1 on medium+ findings — wrong for in-conversation use, makes Claude Code render the output as an error).
+
+Parse the JSON. Present the findings inline:
+
+- Lead with the headline `summary.cost_last_7_days_usd` over the window, the session count, and the rate-limit pressure if `> medium`.
+- Then list findings under two buckets: `findings.clear_wins` and `findings.trade_offs`. For each, show: `[severity]` badge, title, and the projected weekly savings in dollars when available (`(summary.cost_last_7_days_usd × estimatedPercentOfWeeklyUsage/100)` if both are present).
+- For each finding, the next-step is `/boost:boost apply <strategyId>` (clear wins) or just an explanation (trade-offs have no auto-fix).
+- Close with one line on `boost:boost yield` (outcome attribution) or `boost:boost reskill` (project-skill drafting) — whichever is more relevant given the findings.
 
 ### /boost apply <strategy-id>
 

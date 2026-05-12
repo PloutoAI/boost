@@ -16,17 +16,12 @@ Parse `$ARGUMENTS` into `action` (first word) and `rest` (everything after).
 ### Default (no action) → show current findings
 
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs --json
+bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs --chat
 ```
 
-This **always exits 0** (unlike `--check`, which is the CI-gate variant and exits 1 on medium+ findings — wrong for in-conversation use, makes Claude Code render the output as an error).
+`--chat` produces markdown that's already formatted for in-conversation display. **Print the stdout output verbatim** — do not re-parse, re-format, or add commentary on top. The binary owns the formatting (correct $ math against the uncached denominator, severity badges, apply hints). Re-rendering in the slash command is brittle and was the source of every formatting bug in the early plugin builds.
 
-Parse the JSON. Present the findings inline:
-
-- Lead with the headline `summary.cost_last_7_days_usd` over the window, the session count, and the rate-limit pressure if `> medium`.
-- Then list findings under two buckets: `findings.clear_wins` and `findings.trade_offs`. For each, show: `[severity]` badge, title, and the projected weekly savings in dollars when available. **Use `summary.uncached_cost_last_7_days_usd` (NOT `cost_last_7_days_usd`) for the multiplier** — detector percentages are computed against the uncached token bucket; total cost includes cache reads which don't shrink at the same rate, so using total overstates by ~3× on cache-heavy users. Formula: `(uncached_cost × estimatedPercentOfWeeklyUsage / 100)`. If `uncached_cost_last_7_days_usd` is null, omit the dollar projection.
-- For each finding, the next-step is `/boost:boost apply <strategyId>` (clear wins) or just an explanation (trade-offs have no auto-fix).
-- Close with one line on `boost:boost yield` (outcome attribution) or `boost:boost reskill` (project-skill drafting) — whichever is more relevant given the findings.
+Exit code is 0 (this is the read-only audit; `--check` is the CI-gate variant that exits 1 on findings).
 
 ### /boost apply <strategy-id>
 

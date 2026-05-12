@@ -18,6 +18,7 @@
 import { program } from "commander";
 import { bootstrap } from "./orchestrate.ts";
 import { buildJson, renderJson } from "./output/json.ts";
+import { renderChat } from "./output/chat.ts";
 import { buildCheck } from "./output/check.ts";
 import { renderPlain, shouldUseColor } from "./output/plain.ts";
 import { applyCommand } from "./apply-cli.ts";
@@ -42,6 +43,7 @@ program
   .description("Local optimization loop for Claude Code usage, context, models, and skills.")
   .version(VERSION)
   .option("--json", "emit structured JSON to stdout")
+  .option("--chat", "emit conversation-friendly markdown (used by the plugin)")
   .option("--check", "non-interactive check; non-zero exit on findings ≥ medium severity")
   .option("--debug", "print full stack traces on errors")
   .action(async (opts) => runOptimize(opts, "boost"));
@@ -131,12 +133,19 @@ function warnDebug(m: string): void {
 
 async function runOptimize(opts: {
   json?: boolean;
+  chat?: boolean;
   check?: boolean;
   debug?: boolean;
 }, label: string): Promise<void> {
   try {
     const result = bootstrap({ warn: opts.debug ? warnDebug : undefined });
     const { db, runner, totalSavingsPct, ingest } = result;
+
+    if (opts.chat) {
+      const out = buildJson(db, runner.findings, totalSavingsPct);
+      process.stdout.write(renderChat(out));
+      return;
+    }
 
     if (opts.check) {
       const c = buildCheck(runner.findings, summarize(db, totalSavingsPct));

@@ -47,17 +47,11 @@
     "prepublishOnly": "bun run typecheck && bun test && bun run build",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "boost": "bun run src/cli.ts",
-    "charttui:demo": "bun run packages/charttui/examples/showcase.ts",
-    "charttui:sixel": "bun run packages/charttui/examples/sixel-pie.ts",
-    "charttui:native": "bun run packages/charttui/examples/native-demo.ts"
+    "boost": "bun run src/cli.ts"
   },
   "engines": {
     "bun": ">=1.1.0"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "dependencies": {
     "chalk": "^5.3.0",
     "commander": "^12.1.0",

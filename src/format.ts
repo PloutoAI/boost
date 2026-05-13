@@ -29,12 +29,6 @@ export function truncate(s: string, max: number): string {
   return s.slice(0, max - 1) + "…";
 }
 
-/**
- * Keep the last two path segments of an absolute path. Used as a compact
- * label in tables and chart legends — full paths overflow most layouts
- * while a single segment loses the disambiguating parent (e.g.
- * `loop/packages/charttui` vs `velo/packages/charttui`).
- */
 export function shortPath(p: string): string {
   const segs = p.split("/").filter((s) => s.length > 0);
   return segs.slice(-2).join("/") || p;

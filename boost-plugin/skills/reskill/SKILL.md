@@ -1,87 +1,124 @@
 ---
 description: |
-  Use when the user wants to review and improve their Claude Code skill setup —
-  draft skills for projects they're spending heavily on without one, refresh
-  skills that aren't activating, or trim skills that have stopped earning their
-  token weight. Triggers: "reskill", "review my skills", "what skills should
-  I have", "skill opportunities", "are my skills working", "audit my skills",
-  "improve my Claude Code skills", "boost reskill". Performs the LLM-driven
-  review-and-draft work; the bare `boost reskill --json` menu is just the
-  starting fact pack.
+  Use when the user wants to discover what skills should exist in their Claude
+  Code setup — patterns hidden in their actual session content that warrant
+  capturing as skills. This is the skill-building skill. Triggers:
+  "reskill", "what skills should I have", "discover skills", "find skills",
+  "review my skills", "build me skills", "skill ideas", "boost reskill",
+  "I keep doing X — should that be a skill", "am I missing any skills".
+  Reads session content via Claude (not just boost's SQL bucketing) and
+  drafts skills for review.
 allowed-tools:
   - Bash(bun /Users/mouradtrabelsi/.claude/plugins/cache/boost/boost/0.1.0/bin/boost.mjs reskill *)
   - Bash(ls *)
   - Bash(cat *)
+  - Bash(grep *)
   - Bash(wc *)
   - Read
   - Write
   - Glob
 ---
 
-Don't just list opportunities. Review the user's actual session activity, decide what should change, and *do the work*. Drafts go to `~/.boost/drafts/skills/` for review; the user moves them to `~/.claude/skills/` when satisfied.
+This is the skill-discovery engine. The boost CLI provides a starting fact pack — per-project token spend and which skills are installed — but the real discovery happens by *reading sessions and noticing patterns that warrant skills*. boost's SQL can bucket by `cwd`; only an LLM reading the actual prompts and tool calls can spot:
 
-### Step 1 — Get the menu
+- **Repeated questions across sessions** — "how does auth work in X" asked 4× → a skill on X's auth
+- **Recurring command sequences** — same 5 bash commands at every session start → a workflow skill
+- **Persistent context rebuilds** — Claude re-reads the same 8 files every time → those files belong in a project skill's *Important files*
+- **Domain terminology that recurs** — user keeps explaining the same internal jargon → a glossary skill
+- **Workflows boost ALREADY runs implicitly** — repeated `git ... && bun test ...` patterns the user types fresh each time
+- **Skills that should exist as updates, not new** — an existing skill is firing but missing the gotcha you keep hitting
+
+That kind of pattern matching is what makes this skill useful. Without it, you're just rebranding the boost CLI's bucketing.
+
+### Step 1 — Fact pack
 
 ```bash
 bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs reskill --json
 ```
 
 The JSON gives you:
-- `installed_skills[]` — what the user has today (name, frontmatter token cost, body token cost)
-- `opportunities[]` — three kinds:
-  - `project-skill` — heavy token spend on a project that has no skill yet
-  - `skill-trim` — an existing skill with bloated frontmatter
-  - `skill-cleanup` — flagged, not yet implemented as a kind
+- `installed_skills[]` — current setup (name, frontmatter+body token cost)
+- `opportunities[]` — boost's heuristic project-skill candidates (sorted by spend)
 
-Don't dump this menu at the user. It's input to your review.
+This is the **starting signal**, not the answer. Don't just regurgitate it.
 
-### Step 2 — Review existing skills
+### Step 2 — Read recent sessions for real patterns
 
-For each `installed_skills` entry, read `~/.claude/skills/<name>/SKILL.md`. Decide:
-- **Activating reliably?** Check the `description` field — is it specific and trigger-rich, or vague? Vague descriptions cause silent skills.
-- **Earning its weight?** Frontmatter tokens load every session. If the body is 50 tokens and frontmatter is 400, something is wrong.
-- **Still relevant?** Does the project it describes still exist on disk? Are the commands it lists still in the project's package.json?
+Pick 3–5 recent JSONL files from `~/.claude/projects/*/` (newest mtime first). For each:
 
-For each that needs work, draft an updated SKILL.md to `~/.boost/drafts/skills/<name>/SKILL.md` (overwriting any prior draft).
+- Read 100–200 lines, not the whole file — sample the conversation flow.
+- Note **user prompts** (the `type: "user"` rows) — what questions are being asked? Cluster semantically (auth vs deployment vs debugging vs api-design).
+- Note **tool calls** that recur — bash commands, file paths, MCP calls. Sequences are richer signal than individual calls.
+- Note **Read/Bash patterns** that repeat across sessions — those files/commands are the user's hot path; they belong in a skill so Claude doesn't rediscover them.
 
-### Step 3 — Review project-skill opportunities
+You're scanning for *recurring shapes*, not just counting. A pattern is interesting when:
+1. It appears across **multiple sessions** (one-off doesn't earn a skill)
+2. It involves **non-obvious knowledge** — *"run `uv run alembic upgrade head` to migrate"* is skill material; *"run tests with `pytest`"* is universal trivia
+3. There's **no existing skill** that already covers it (check Step 1's `installed_skills[]`)
 
-For each `project-skill` opportunity (sorted by uncached tokens, biggest first), decide whether to draft:
+### Step 3 — Draft candidate skills
 
-- **Threshold for drafting**: the opportunity must show real recurring work. ≥ 8 requests, ≥ 1 session is the detector's bar; you should be tighter — only draft if the project is actually substantial (look at the project on disk: real codebase vs scratch dir? README present? has package.json / pyproject.toml?). Don't draft a skill for `/tmp/scratch`.
-- **Draft up to 3 new skills per invocation.** More than that overwhelms review. If there are more candidates, mention them and suggest re-running.
-- For each drafted skill, follow the `draft-project-skill` flow:
-  - Read README, package.json/pyproject.toml/Makefile
-  - Sample 1–2 recent session JSONL files from `~/.claude/projects/` whose `cwd` matches
-  - Author a SKILL.md per Anthropic's spec (description trigger-rich, no `name` field, lean body, no ceremony sections)
-  - Write to `~/.boost/drafts/skills/<project-slug>/SKILL.md`
+Build up to 3 candidate skills per invocation. Each has a clear **type**:
 
-The full per-project synthesis recipe lives in the `draft-project-skill` skill (`${CLAUDE_PLUGIN_ROOT}/skills/draft-project-skill/SKILL.md`). Read and follow it for each project you draft.
+| Type | What it captures | Example name |
+|---|---|---|
+| `project` | Per-project conventions, entrypoints, commands | `velo`, `boost`, `loop` |
+| `workflow` | Recurring task sequence across projects | `release-checklist`, `deploy-staging`, `pre-pr-review` |
+| `tool-pattern` | A specific tool used a specific way | `git-bisect-narrow`, `sqlite-debug-loop` |
+| `knowledge` | Reusable domain context (APIs, jargon, conventions) | `plouto-attribution-model`, `claude-code-internals` |
+| `update` | Modification to an existing skill (refresh description, add gotcha) | `velo` (existing) |
 
-### Step 4 — Summarise the work
+For each candidate, draft a real SKILL.md following Anthropic's canonical format:
 
-Tell the user, tightly:
+```yaml
+---
+description: <trigger-rich paragraph; specific phrases the user would say>
+allowed-tools:
+  - <ONLY tools the skill genuinely needs without re-prompting>
+---
+```
+
+Body — imperative, freeform markdown, under 500 lines:
+- One-paragraph what-this-is
+- Concrete commands (use `!`backtick command`` for live-injected dynamic content, hardcode for stable patterns)
+- Important files / entrypoints
+- Conventions and gotchas, *drawn from observed evidence*
+
+The full per-project recipe is in `draft-project-skill` (`${CLAUDE_PLUGIN_ROOT}/skills/draft-project-skill/SKILL.md`) — read and follow it when drafting a `project` type. For other types, the same principles apply (lean frontmatter, trigger-rich description, imperatives, no ceremony sections).
+
+### Step 4 — Write drafts to `~/.boost/drafts/skills/<name>/SKILL.md`
+
+Create parent dirs as needed. Overwrite prior drafts of the same name.
+
+### Step 5 — Brief the user
+
+Tight:
 
 ```
-Reviewed: N existing skills, M project opportunities.
+Discovered: N skill candidates from <X> sessions reviewed.
 
-Drafted (N+M new/updated files at ~/.boost/drafts/skills/):
-  - <name>: <one-line why>
+Drafted (~/.boost/drafts/skills/):
+  - <name> [project|workflow|tool-pattern|knowledge|update]:
+      Evidence: <what you saw — e.g., "auth question repeated across 4 sessions">
+      Why it earns a skill: <one line>
 
 Skipped:
-  - <name>: <one-line why — too small, scratch dir, already covered, etc.>
+  - <name>: <one line — covered by existing skill / one-off / too generic>
 
-Next: review the drafts, move keepers to ~/.claude/skills/ (or
-<project>/.claude/skills/ for project-scoped), restart Claude Code.
+Next: review the drafts. Promote keepers to ~/.claude/skills/<name>/
+(or <project>/.claude/skills/<name>/ for project-scoped). Restart
+Claude Code so they load at session start.
 ```
 
-If you didn't draft anything: explain why each candidate was skipped. *Don't* draft for the sake of drafting.
+If you discovered nothing worth drafting: say so. *Don't* draft for the sake of drafting.
 
 ### Hard constraints
 
-- **Skills must be specific.** Generic best-practice rules don't belong in a SKILL.md — they bloat every session. Project-specific entrypoints, commands, conventions, gotchas only.
-- **Never** include secrets, tokens, paths to credential files, or anything sensitive observed in sessions.
-- **No `name` in frontmatter** — directory name is used.
-- **`description` is the activation engine** — pack trigger phrases the user would naturally say.
+- **Evidence-driven** — every drafted skill must cite specific observations from the sessions you read. Not vague claims.
+- **No new content** beyond what the sessions evidence. Don't generate generic best-practice rules.
+- **Never** include secrets, tokens, paths to credential files, prompt bodies the user typed verbatim, or anything sensitive.
+- **No `name` in frontmatter** — directory name wins.
+- **`description` is the activation engine** — pack trigger phrases. Specific enough to fire on intent, narrow enough to not over-trigger.
 - **Body under 500 lines.** Anthropic's hard ceiling.
-- **Drafts only.** Never write directly to `~/.claude/skills/`. The user promotes when ready.
+- **Drafts only** — never writes directly to `~/.claude/skills/`. The user promotes when satisfied.
+- **No more than 3 drafts per invocation.** More overwhelms review; recommend re-running.

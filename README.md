@@ -3,9 +3,13 @@
 > **The offline optimization loop for Claude Code.**
 > See where tokens are wasted. Apply reversible fixes. Run it again. Watch the waste go down. No TUI, no network, no telemetry, no accounts.
 
-```sh
-npx @plouto/boost
+Install in Claude Code (recommended):
+
 ```
+/plugin install PloutoAI/boost
+```
+
+Then `/boost:audit` to see findings, `/boost:fix <strategy-id>` to apply them.
 
 ## The loop
 
@@ -85,14 +89,24 @@ Flags (top-level):
 
 ## Installation
 
-`npx @plouto/boost` works without install. To install globally:
+**Inside Claude Code (recommended)** — installs the plugin (binary + slash commands + skills):
 
-```sh
-bun add -g @plouto/boost     # or: npm install -g @plouto/boost
-boost
+```
+/plugin install PloutoAI/boost
 ```
 
-Requires Bun ≥ 1.1.0.
+After install, `/boost:audit` to see findings, `/boost:fix <id>` to apply them. Skills like `trim-claude-md`, `reskill`, `draft-project-skill` auto-activate when you describe what you want in natural language.
+
+**As a CLI** (for terminal use, pre-push hooks, scripting):
+
+```sh
+git clone https://github.com/PloutoAI/boost.git
+cd boost
+bun install && bun run build
+./bin/boost.mjs
+```
+
+Requires Bun ≥ 1.1.0. An npm-published version (`npx @plouto/boost`) is planned but not yet on the registry — pin to a git ref or use the plugin install in the meantime.
 
 ## Contributing
 

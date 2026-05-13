@@ -7,24 +7,20 @@ arguments:
     required: false
 ---
 
-Parse `$ARGUMENTS` into `strategyId` (or detect `--all`).
-
-**If the strategy is `claude-md-bloat`** (the user named it directly, or `$ARGUMENTS` is empty and the only clear-win finding is claude-md-bloat), do **not** apply via this command. The boost CLI's apply path for it is a static stash-and-stub (theater, not a real fix). Tell the user to invoke `/boost:trim-claude-md` instead — that skill does a real LLM-driven trim, then pipes through the boost apply pipeline (so it's still reversible).
-
-**For every other strategy**, shell out:
+Parse `$ARGUMENTS` into `strategyId` (or detect `--all`). Then shell out:
 
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs apply $STRATEGY_ID
+bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs fix $STRATEGY_ID
 ```
 
 Or for bulk:
 
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs apply --all
+bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs fix --all
 ```
 
 On success: confirm with the affected files (boost prints them) and remind the user that `/boost:revert` undoes any of them.
 
-On failure (exit 2): surface stderr verbatim. Don't paraphrase.
+On failure (exit 2): surface stderr verbatim. Don't paraphrase. The binary's error messages already point at the right next step — for example, if the strategy requires LLM-synthesised content (claude-md-bloat), it will say so and point at `/boost:trim-claude-md`.
 
-If `$ARGUMENTS` is empty: run `/boost:audit` first to show findings, then suggest the right `/boost:fix <id>` invocation.
+If `$ARGUMENTS` is empty: run the `audit` flow first to show findings, then suggest the right `/boost:fix <id>` invocation.

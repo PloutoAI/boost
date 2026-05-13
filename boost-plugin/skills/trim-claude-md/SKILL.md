@@ -49,7 +49,7 @@ Target: ~1200–1500 words (Anthropic's recommended budget for the global file).
 Write the trimmed content to a tmp file (heredocs with large content via bash are fragile). Then pipe to boost:
 
 ```bash
-cat /tmp/boost-trim.md | bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs apply claude-md-bloat --content-from-stdin
+cat /tmp/boost-trim.md | bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs fix claude-md-bloat --content-from-stdin
 ```
 
 This requires the detector to currently fire (i.e., the file is bloated). If `~/.claude/CLAUDE.md` is already the stub from a prior apply, run `boost revert <op-id>` first (find the op id with `sqlite3 ~/.boost/db.sqlite "SELECT operation_id FROM operations WHERE strategy_id='claude-md-bloat' AND reverted_at_iso IS NULL ORDER BY applied_at_iso DESC LIMIT 1;"`). If the mtime guard blocks (the just-reverted file looks "fresh"), backdate it: `touch -t $(date -v-30d +%Y%m%d%H%M) ~/.claude/CLAUDE.md`.

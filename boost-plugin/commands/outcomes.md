@@ -6,7 +6,7 @@ description: Did your Claude Code spending produce shipped work? Shipped vs aban
 Run:
 
 ```bash
-bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs yield
+bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs outcomes
 ```
 
 Emit the output verbatim as your reply. It's already markdown-shaped: header + three buckets (Shipped / Abandoned / Unverifiable) with $ totals and per-session detail.

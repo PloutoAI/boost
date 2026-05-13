@@ -91,7 +91,7 @@ export function renderPlain(
   pushObserved(lines, observed, c);
 
   if (findings.length > 0) {
-    lines.push(`Run "boost apply <strategy-id>" to apply a finding, or "boost apply --all" for every clear-win.`);
+    lines.push(`Run "boost fix <strategy-id>" to apply a finding, or "boost fix --all" for every clear-win.`);
     lines.push(`Run "boost --json" for structured output.`);
   } else {
     lines.push(c.dim(`Run "boost --json" for the full structured output.`));

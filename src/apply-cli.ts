@@ -1,9 +1,9 @@
 /**
- * `boost apply` — non-interactive CLI for the apply primitive.
+ * `boost fix` — non-interactive CLI for the apply primitive.
  *
  * Two shapes:
- *   - boost apply <strategy-id>   apply every fix on that finding
- *   - boost apply --all           apply every clear-win finding that has a fix
+ *   - boost fix <strategy-id>   apply every fix on that finding
+ *   - boost fix --all           apply every clear-win finding that has a fix
  *
  * Every applied fix is reversible (operation + backup recorded; `boost
  * revert` restores). There is no "destructive but reversible" middle
@@ -39,11 +39,22 @@ export async function applyCommand(
   const { db, runner } = result;
 
   if (opts.all) {
-    const candidates = runner.findings.filter(
+    const allCandidates = runner.findings.filter(
       (f) => f.category === "clear-wins" && (f.fixes?.length ?? 0) > 0,
     );
+    // Split off findings whose fix requires LLM-synthesised content via
+    // stdin. Bulk apply can't deliver that — skip with a note so the
+    // user knows to run the corresponding skill separately.
+    const candidates = allCandidates.filter((f) => !findingRequiresContent(f));
+    const skipped = allCandidates.filter((f) => findingRequiresContent(f));
+    for (const f of skipped) {
+      process.stderr.write(
+        `⤳ skipping ${f.strategyId}: requires LLM-synthesised content. Run the matching plugin skill (e.g., \`/boost:trim-claude-md\`).\n`,
+      );
+    }
     if (candidates.length === 0) {
-      process.stdout.write("No clear-win findings to apply.\n");
+      const msg = skipped.length > 0 ? "No bulk-applicable clear-wins (see skipped above).\n" : "No clear-win findings to apply.\n";
+      process.stdout.write(msg);
       return;
     }
     let applied = 0;
@@ -58,14 +69,14 @@ export async function applyCommand(
         process.stderr.write(`✗ ${finding.strategyId}: ${(err as Error).message}\n`);
       }
     }
-    process.stdout.write(`\n${applied} applied, ${failed} failed. Undo any with \"boost revert\".\n`);
+    process.stdout.write(`\n${applied} applied, ${failed} failed, ${skipped.length} skipped. Undo any with "boost revert".\n`);
     if (failed > 0) process.exit(1);
     return;
   }
 
   if (!strategyId) {
     process.stderr.write(
-      "boost apply: pass a <strategy-id> or use --all to apply every clear-win.\n",
+      "boost fix: pass a <strategy-id> or use --all to apply every clear-win.\n",
     );
     process.stderr.write('(run "boost" first to see available strategy IDs.)\n');
     process.exit(2);
@@ -73,32 +84,45 @@ export async function applyCommand(
 
   const finding = runner.findings.find((f) => f.strategyId === strategyId);
   if (!finding) {
-    process.stderr.write(`boost apply: no current finding with strategy id ${JSON.stringify(strategyId)}.\n`);
+    process.stderr.write(`boost fix: no current finding with strategy id ${JSON.stringify(strategyId)}.\n`);
     process.stderr.write('(run "boost" to see the active findings list.)\n');
     process.exit(2);
   }
   if (!finding.fixes || finding.fixes.length === 0) {
-    process.stderr.write(`boost apply: ${strategyId} is advisory — no automated fix to apply.\n`);
+    process.stderr.write(`boost fix: ${strategyId} is advisory — no automated fix to apply.\n`);
+    process.exit(2);
+  }
+
+  if (findingRequiresContent(finding) && !opts.contentFromStdin) {
+    process.stderr.write(
+      `boost fix: ${strategyId} requires LLM-synthesised content (the static fix is a placeholder).\n`,
+    );
+    process.stderr.write(
+      `Run the plugin skill that drives this: \`/boost:trim-claude-md\` (or describe what you want — it auto-activates on natural language).\n`,
+    );
+    process.stderr.write(
+      `If you're scripting, pipe the content yourself: \`<content> | boost fix ${strategyId} --content-from-stdin\`.\n`,
+    );
     process.exit(2);
   }
 
   if (opts.contentFromStdin) {
     if (finding.fixes.length !== 1) {
       process.stderr.write(
-        `boost apply --content-from-stdin: ${strategyId} has ${finding.fixes.length} fixes; only single-fix strategies support stdin content override.\n`,
+        `boost fix --content-from-stdin: ${strategyId} has ${finding.fixes.length} fixes; only single-fix strategies support stdin content override.\n`,
       );
       process.exit(2);
     }
     const firstFix = finding.fixes[0];
     if (firstFix?.kind !== "modify-file") {
       process.stderr.write(
-        `boost apply --content-from-stdin: ${strategyId}'s fix is "${firstFix?.kind}", not "modify-file" — stdin override is only for content replacements.\n`,
+        `boost fix --content-from-stdin: ${strategyId}'s fix is "${firstFix?.kind}", not "modify-file" — stdin override is only for content replacements.\n`,
       );
       process.exit(2);
     }
     const stdinContent = await readAllStdin();
     if (stdinContent.length === 0) {
-      process.stderr.write(`boost apply --content-from-stdin: stdin was empty; refusing to write an empty file.\n`);
+      process.stderr.write(`boost fix --content-from-stdin: stdin was empty; refusing to write an empty file.\n`);
       process.exit(2);
     }
     const overridden: Finding = {
@@ -124,6 +148,14 @@ export async function applyCommand(
   await applyOne(db, finding);
   process.stdout.write(`✓ applied ${finding.strategyId}: ${finding.title}\n`);
   process.stdout.write(`(reversible: "boost revert" undoes it)\n`);
+}
+
+function findingRequiresContent(finding: Finding): boolean {
+  if (!finding.fixes) return false;
+  for (const fix of finding.fixes) {
+    if (fix.kind === "modify-file" && fix.payload.requiresContent === true) return true;
+  }
+  return false;
 }
 
 async function readAllStdin(): Promise<string> {

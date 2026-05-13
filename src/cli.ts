@@ -78,7 +78,8 @@ program
   });
 
 program
-  .command("yield")
+  .command("outcomes")
+  .alias("yield")
   .description("Show shipped vs abandoned vs unverifiable $ spend (outcome attribution).")
   .option("--json", "emit structured JSON to stdout")
   .option("--debug", "print full stack traces on errors")
@@ -91,13 +92,14 @@ program
     } catch (err) {
       const msg = (err as Error).message;
       if (opts.debug) console.error(err);
-      else console.error(`boost yield: ${msg}`);
+      else console.error(`boost outcomes: ${msg}`);
       process.exit(2);
     }
   });
 
 program
-  .command("apply [strategyId]")
+  .command("fix [strategyId]")
+  .alias("apply")
   .description("Apply a finding's fix(es) by strategy ID, or use --all for every clear-win.")
   .option("--all", "apply every clear-win finding that has a fix")
   .option("--content-from-stdin", "use stdin as the replacement content for a single modify-file fix (used by plugin LLM flows)")
@@ -108,7 +110,7 @@ program
     } catch (err) {
       const msg = (err as Error).message;
       if (opts.debug) console.error(err);
-      else console.error(`boost apply: ${msg}`);
+      else console.error(`boost fix: ${msg}`);
       process.exit(2);
     }
   });

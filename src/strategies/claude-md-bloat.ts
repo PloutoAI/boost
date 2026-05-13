@@ -86,9 +86,18 @@ const strategy: StrategyDefinition = {
           ? "medium"
           : "low";
 
+    // The fix carries the file path and a placeholder body, but is marked
+    // requiresContent: true so the apply CLI refuses static application.
+    // The trim-claude-md skill provides real LLM-synthesised content via
+    // `--content-from-stdin`, which substitutes newContent at apply time.
+    // Static stash-and-stub was theater; this enforces the real-trim path.
     const fix: Fix = {
       kind: "modify-file",
-      payload: { filePath: globalFile.path, newContent: STUB },
+      payload: {
+        filePath: globalFile.path,
+        newContent: STUB,
+        requiresContent: true,
+      },
     };
     const fixes = [fix] as const;
 

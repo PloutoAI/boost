@@ -1,5 +1,5 @@
 /**
- * `boost yield` — outcome attribution at the aggregate level. Where
+ * `boost outcomes` (alias: `boost yield`) — outcome attribution. Where
  * `unshipped-cost-advisory` flags specific suspicious sessions,
  * `yield` answers the broader question: of every dollar I spent on
  * Claude Code this week, how much produced a commit?
@@ -100,7 +100,7 @@ export function buildYieldReport(
 
 export function renderYieldReport(r: YieldReport): string {
   const lines: string[] = [];
-  lines.push(`boost yield — last ${r.windowDays} days`);
+  lines.push(`boost outcomes — last ${r.windowDays} days`);
   lines.push("");
   if (r.totalSessionsConsidered === 0) {
     lines.push(`No sessions ≥ ${formatUsd(r.minCostUsd)} in window. Nothing to attribute.`);

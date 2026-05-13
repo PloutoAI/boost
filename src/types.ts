@@ -66,6 +66,16 @@ export type ModifyFilePayload = {
   /** Canonicalized absolute path; verified within an allowed root. */
   filePath: string;
   newContent: string;
+  /**
+   * When true, the static `newContent` is a placeholder — apply must be
+   * driven through `--content-from-stdin` (a plugin skill supplying real
+   * LLM-synthesized content). The CLI refuses to apply without stdin,
+   * and `apply --all` skips this finding entirely with a stderr note.
+   *
+   * Set this when the *only honest fix* requires language synthesis (e.g.,
+   * `claude-md-bloat` — a static stub replacement is theater, not a fix).
+   */
+  requiresContent?: boolean;
 };
 
 /** Set a single JSON path inside a settings file. */

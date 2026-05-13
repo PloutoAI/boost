@@ -6,8 +6,8 @@
     "name": "Plouto",
     "url": "https://plouto.ai"
   },
-  "homepage": "https://github.com/plouto-dev/boost",
-  "repository": "https://github.com/plouto-dev/boost",
+  "homepage": "https://github.com/PloutoAI/boost",
+  "repository": "https://github.com/PloutoAI/boost",
   "license": "MIT",
   "keywords": [
     "claude-code",
@@ -18,6 +18,9 @@
     "tokens"
   ],
   "commands": [
-    "./commands/boost.md"
+    "./commands/audit.md",
+    "./commands/fix.md",
+    "./commands/revert.md",
+    "./commands/outcomes.md"
   ]
 }

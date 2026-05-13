@@ -3,7 +3,7 @@ name: boost
 description: Local optimization loop for Claude Code — dispatcher. Routes to the right skill based on the action.
 arguments:
   - name: action
-    description: "(none) = audit · apply <id> · apply-all · trim-claude-md · reskill · reskill <name> = draft-project-skill · revert [id] · yield"
+    description: "(none) = audit · fix <id> · fix --all · trim-claude-md · reskill · reskill <name> = draft-project-skill · revert [id] · outcomes"
     required: false
 ---
 
@@ -14,13 +14,12 @@ Each action's actual logic lives in a sibling skill at `${CLAUDE_PLUGIN_ROOT}/sk
 | `action` value | Skill to follow |
 |---|---|
 | (empty), `check`, `audit` | **audit** — show current findings |
-| `apply claude-md-bloat` | **trim-claude-md** — LLM-driven trim of CLAUDE.md (bypasses the dumb stash-and-stub) |
-| `apply <id>`, `apply-all`, `apply --all` | **apply** — straight pass-through to `boost apply` |
-| `trim-claude-md` (explicit) | **trim-claude-md** |
-| `reskill` (no second word) | **reskill** — list opportunities |
-| `reskill <name>` | **draft-project-skill** — author a SKILL.md draft from observed activity |
+| `apply claude-md-bloat`, `fix claude-md-bloat`, `trim-claude-md` | **trim-claude-md** — LLM-driven trim of CLAUDE.md |
+| `apply <id>`, `apply --all`, `fix <id>`, `fix --all` | **fix** — straight pass-through to `boost apply` |
+| `reskill` (no second word) | **reskill** — real skill-discovery (reads sessions, drafts candidates) |
+| `reskill <name>` | **draft-project-skill** — author a SKILL.md draft for a named project |
 | `revert`, `revert <op-id>` | **revert** |
-| `yield` | **yield** — outcome attribution |
+| `yield`, `outcomes` | **outcomes** — did your work ship? shipped vs abandoned vs unverifiable $ |
 | anything else | list recognised actions; suggest the closest match |
 
 Read the matched skill's `SKILL.md` and follow its instructions exactly. The skill files are the single source of truth — do not duplicate the logic inline.

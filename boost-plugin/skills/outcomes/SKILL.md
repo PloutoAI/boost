@@ -1,16 +1,18 @@
 ---
 description: |
-  Use when the user wants outcome attribution — what they spent on Claude
-  Code sessions that actually shipped (commits landed) vs sessions that
-  produced nothing. Triggers: "yield", "did my work ship", "abandoned
-  spend", "boost yield", "what was wasted", "shipped vs abandoned",
-  "wasted sessions", "outcome attribution". Surfaces the shipped /
-  abandoned / unverifiable $ breakdown over the last 7 days.
+  Use when the user wants to know if their Claude Code spending actually
+  produced shipped work — committed code — vs sessions that didn't make
+  it to a commit. Triggers: "did my work ship", "was it worth it",
+  "outcome attribution", "shipped vs abandoned", "what was wasted",
+  "wasted sessions", "abandoned spend", "where did my money go",
+  "boost yield", "outcomes". Surfaces the shipped / abandoned /
+  unverifiable $ breakdown over the last 7 days, tied to git commits
+  in each session's cwd.
 allowed-tools:
   - Bash(bun /Users/mouradtrabelsi/.claude/plugins/cache/boost/boost/0.1.0/bin/boost.mjs yield)
 ---
 
-Run the yield report:
+Run the outcomes report:
 
 ```bash
 bun ${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs yield

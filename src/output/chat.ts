@@ -51,7 +51,7 @@ export function renderChat(out: JsonOutput): string {
     lines.push("");
   }
 
-  lines.push("More: `/boost:boost yield` (outcome attribution) · `/boost:boost reskill` (project skills).");
+  lines.push("More: `/boost:outcomes` (did your work ship?) · `/boost:reskill` (skill discovery).");
   return lines.join("\n") + "\n";
 }
 
@@ -78,7 +78,7 @@ function findingLines(f: Finding, uncachedCost: number | null): string[] {
   const out: string[] = [];
   out.push(`- **[${f.severity.toUpperCase()}]** ${f.title}${dollarHint}`);
   if (f.fixes && f.fixes.length > 0) {
-    out.push(`  → \`/boost:boost apply ${f.strategyId}\``);
+    out.push(`  → \`/boost:fix ${f.strategyId}\``);
   }
   return out;
 }

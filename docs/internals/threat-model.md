@@ -44,8 +44,10 @@ It does **not**:
 
 **Mitigation:**
 - Backup operations use `lstat` to detect symlinks before opening; refuse to back up if a symlink is detected
-- Restore operations refuse to write through symlinks. Destination checked with `lstat` immediately before write
+- Restore operations refuse to write through symlinks. Destination checked with `lstat` immediately before write; `safeRoot` is passed so `refuseSymlinkInAncestors` walks every intermediate dir (and now `safeRoot` itself) before the rename — closes the asymmetry where the forward path had ancestor protection but the reverse did not
 - File copy uses `O_NOFOLLOW`-equivalent semantics (Bun's fs primitives respect this)
+
+**Known open gap (tracked):** `assertWithinAllowedRoots()` and `pickSafeRoot()` both call `fs.realpathSync` for canonicalization, which silently follows symlinks. An attacker who swaps an ancestor between bootstrap and the moment canonicalization runs ends up with both ends agreeing on the *resolved* path — and the ancestor checks then pass. Closing this requires switching canonicalization to lexical + per-component `lstat`. Defense-in-depth on the eventual write boundary still applies, but the trust chain is weaker than the prose above implies until that work lands.
 
 **Tests:** symlink fixtures in `tests/fixtures/symlinks/`. Each backup-kind test runs against a symlinked target and verifies refusal with a clear error.
 

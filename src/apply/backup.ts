@@ -23,7 +23,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { createHash, randomBytes } from "node:crypto";
 import { parse as parseJsonc } from "jsonc-parser";
-import { backupsDir } from "../paths.ts";
+import { backupsDir, pickSafeRoot } from "../paths.ts";
 import { assertNever, type BackupRef } from "../types.ts";
 import { isObject } from "../data/jsonl-payload.ts";
 
@@ -179,14 +179,34 @@ export function atomicWriteFile(
 }
 
 /**
- * Walk every ancestor of `target` from `safeRoot` down. If any ancestor is
- * a symlink, refuse — closes the TOCTOU between canonicalize and write.
+ * Walk every ancestor of `target` from `safeRoot` down. If any ancestor —
+ * including `safeRoot` itself — is a symlink, refuse. Closes the TOCTOU
+ * between canonicalize and write.
+ *
+ * Known limit (not closed here): `assertWithinAllowedRoots()` and
+ * `pickSafeRoot()` both call `fs.realpathSync`, which silently follows
+ * symlinks during canonicalization. If an attacker swaps an ancestor
+ * between bootstrap and the moment safeRoot is picked, both ends agree
+ * on the *resolved* path and this check passes. A future commit needs
+ * to switch canonicalization to lexical + per-component lstat.
  */
 export function refuseSymlinkInAncestors(target: string, safeRoot: string): void {
   const absTarget = path.resolve(target);
   const absRoot = path.resolve(safeRoot);
   if (absTarget !== absRoot && !absTarget.startsWith(absRoot + path.sep)) {
     throw new Error(`refuseSymlinkInAncestors: ${absTarget} not under safe root ${absRoot}`);
+  }
+  // Check safeRoot itself — the function name says "in ancestors"; safeRoot
+  // is the topmost ancestor we care about. If it's been swapped for a
+  // symlink, every path below it is suspect.
+  try {
+    const lstRoot = fs.lstatSync(absRoot);
+    if (lstRoot.isSymbolicLink()) {
+      throw new Error(`refusing to operate through symlinked safe root: ${absRoot}`);
+    }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    // Root doesn't exist yet — fine, mkdir-recursive will create real dirs.
   }
   // Build the list of intermediate directories from root down to target's parent.
   const rel = path.relative(absRoot, path.dirname(absTarget));
@@ -251,12 +271,13 @@ function backupFile(spec: FileBackupSpec): BackupResult {
 
 function restoreFile(ref: Extract<BackupRef, { kind: "file" }>): RestoreOutcome {
   const data = fs.readFileSync(ref.path);
-  // Refuse to overwrite a symlink at any level under the parent of `originalPath`.
-  // Use the parent dir as the conservative "safe root" — guarantees we won't
-  // follow a symlink anywhere from there to the leaf.
+  // Mirror the apply path: lstat the leaf, then walk every ancestor from
+  // the smallest allowed root down. Closes the asymmetry where the forward
+  // path passed safeRoot but the reverse did not.
   const target = ref.originalPath;
   refuseSymlinkAtLeaf(target);
-  atomicWriteFile(target, data, ref.mode);
+  const safeRoot = pickSafeRoot(path.resolve(target));
+  atomicWriteFile(target, data, ref.mode, safeRoot);
   return { kind: "file", postHash: hashFile(target) };
 }
 
@@ -321,7 +342,8 @@ function restoreSettingsKey(
     setJsonPath(current, payload.jsonPath, payload.previousValue);
   }
   const out = JSON.stringify(current, null, 2);
-  atomicWriteFile(payload.filePath, out, 0o600);
+  const safeRoot = pickSafeRoot(path.resolve(payload.filePath));
+  atomicWriteFile(payload.filePath, out, 0o600, safeRoot);
 
   // Re-parse to verify the restored value matches.
   let restored: unknown = undefined;

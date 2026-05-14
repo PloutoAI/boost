@@ -88,6 +88,34 @@ test("archive-directory: apply then revert restores files and removes archive", 
   handle.close();
 });
 
+test("revert refuses when an ancestor directory has been swapped for a symlink", async () => {
+  const handle = LoopDatabase.open();
+  // Put the target inside a subdir so there's a real ancestor to swap.
+  const sub = path.join(h.claudeHome, "rules");
+  fs.mkdirSync(sub);
+  const target = path.join(sub, "CLAUDE.md");
+  const original = "# rules\nbe terse\n";
+  fs.writeFileSync(target, original, { mode: 0o644 });
+
+  const op = await applyFix(
+    { kind: "modify-file", payload: { filePath: target, newContent: "# stub\n" } },
+    { db: handle.db, strategyId: "claude-md-bloat", strategyVersion: 1, predictedSavings: null },
+  );
+
+  // Attacker move: swap the ancestor for a symlink pointing elsewhere.
+  // Revert should refuse instead of writing through the link.
+  const decoy = path.join(h.loopHome, "decoy");
+  fs.mkdirSync(decoy);
+  fs.writeFileSync(path.join(decoy, "CLAUDE.md"), "decoy\n");
+  fs.rmSync(sub, { recursive: true });
+  fs.symlinkSync(decoy, sub);
+
+  await expect(revertOperation(handle.db, op.operationId)).rejects.toThrow(/symlink/);
+  // The decoy must not have been overwritten with the backup contents.
+  expect(fs.readFileSync(path.join(decoy, "CLAUDE.md"), "utf8")).toBe("decoy\n");
+  handle.close();
+});
+
 test("hash-based race-check aborts when target changed since detection", async () => {
   const handle = LoopDatabase.open();
   const { hashFile } = await import("../src/apply/backup.ts");

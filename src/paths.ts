@@ -86,6 +86,25 @@ export function archivedSkillsDir(): string {
   return ensureDir(assertSafe(path.join(boostHome(), "archived-skills")));
 }
 
+/**
+ * Pick the smallest allowed root that contains `canonTarget`. Returned
+ * value is the realpath-canonicalized form, suitable for use as
+ * `safeRoot` in `atomicWriteFile()` / `refuseSymlinkInAncestors()`.
+ */
+export function pickSafeRoot(canonTarget: string): string {
+  const candidates = [claudeHome(), boostHome(), ...allowedWriteRoots()];
+  for (const root of candidates) {
+    let r: string;
+    try {
+      r = fs.realpathSync(root);
+    } catch {
+      r = path.resolve(root);
+    }
+    if (canonTarget === r || canonTarget.startsWith(r + path.sep)) return r;
+  }
+  throw new Error(`pickSafeRoot: no allowed root contains ${canonTarget}`);
+}
+
 /** Allowed write roots for fix payloads. Used by path-safety checks. */
 export function allowedWriteRoots(): string[] {
   const roots = new Set<string>();

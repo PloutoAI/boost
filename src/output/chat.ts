@@ -35,13 +35,13 @@ export function renderChat(out: JsonOutput): string {
   const cw = out.findings.clear_wins;
   const to = out.findings.trade_offs;
   if (cw.length > 0) {
-    lines.push("## Clear wins");
+    lines.push("## Clear wins · fixable");
     lines.push("");
     for (const f of cw) lines.push(...findingLines(f, uncached));
     lines.push("");
   }
   if (to.length > 0) {
-    lines.push("## Trade-offs (advisory)");
+    lines.push("## Trade-offs · advisory (no automated fix)");
     lines.push("");
     for (const f of to) lines.push(...findingLines(f, uncached));
     lines.push("");
@@ -78,7 +78,9 @@ function findingLines(f: Finding, uncachedCost: number | null): string[] {
   const out: string[] = [];
   out.push(`- **[${f.severity.toUpperCase()}]** ${f.title}${dollarHint}`);
   if (f.fixes && f.fixes.length > 0) {
-    out.push(`  → \`/boost:fix ${f.strategyId}\``);
+    out.push(`  ▶ \`/boost:fix ${f.strategyId}\``);
+  } else {
+    out.push(`  · _advisory — no automated fix_`);
   }
   return out;
 }

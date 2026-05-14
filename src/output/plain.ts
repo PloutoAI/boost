@@ -62,9 +62,10 @@ export function renderPlain(
 
   const clearWins = findings.filter((f) => f.category === "clear-wins");
   const tradeOffs = findings.filter((f) => f.category === "trade-offs");
+  const hasFixable = findings.some((f) => f.fixes && f.fixes.length > 0);
 
   if (clearWins.length > 0) {
-    lines.push(header("CLEAR WINS", totalSavingsPct, c));
+    lines.push(header("CLEAR WINS · fixable", totalSavingsPct, c));
     let i = 1;
     for (const f of clearWins) {
       lines.push(formatRow(i++, f, summary.uncached_cost_last_7_days_usd, c));
@@ -74,7 +75,7 @@ export function renderPlain(
 
   if (tradeOffs.length > 0) {
     const tradeTotal = tradeOffs.reduce((s, f) => s + (f.estimatedPercentOfWeeklyUsage ?? 0), 0);
-    lines.push(header("TRADE-OFFS", tradeTotal, c));
+    lines.push(header("TRADE-OFFS · advisory", tradeTotal, c));
     let i = clearWins.length + 1;
     for (const f of tradeOffs) {
       lines.push(formatRow(i++, f, summary.uncached_cost_last_7_days_usd, c));
@@ -90,9 +91,13 @@ export function renderPlain(
   // Observed panel: always rendered.
   pushObserved(lines, observed, c);
 
-  if (findings.length > 0) {
-    lines.push(`Run "boost fix <strategy-id>" to apply a finding, or "boost fix --all" for every clear-win.`);
+  if (hasFixable) {
+    lines.push(`Run "boost fix <strategy-id>" on a ${c.bold("▶")} row, or "boost fix --all" for every clear-win.`);
+    lines.push(`Advisory rows (${c.dim("·")}) are informational — no automated fix.`);
     lines.push(`Run "boost --json" for structured output.`);
+  } else if (findings.length > 0) {
+    lines.push(c.dim(`All findings are advisory (${c.dim("·")}) — no automated fix available.`));
+    lines.push(c.dim(`Run "boost --json" for structured output.`));
   } else {
     lines.push(c.dim(`Run "boost --json" for the full structured output.`));
   }
@@ -163,7 +168,9 @@ function formatRow(idx: number, f: Finding, weeklyDollars: number | null, c: Cha
   // weeklyDollars passed in is the *uncached* bill — using total bill
   // would overstate because cache-read $ dominates total but doesn't
   // shrink at detector pct (detector pcts are against uncached tokens).
-  return `  ${idx}. ${f.title.padEnd(40).slice(0, 40)} ${sevTag} ${pctText}${dollarsText}`;
+  const hasFix = !!(f.fixes && f.fixes.length > 0);
+  const marker = hasFix ? c.bold("▶") : c.dim("·");
+  return `  ${marker} ${idx}. ${f.title.padEnd(40).slice(0, 40)} ${sevTag} ${pctText}${dollarsText}`;
 }
 
 function colorSeverity(sev: Finding["severity"], c: ChalkInstance): string {

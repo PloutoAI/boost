@@ -59,6 +59,8 @@ State lives under `~/.boost/`:
 | Offline | ✓ | — | — | ✓ | ✓ |
 | License | MIT | Free tier + paid | Free tier + $9k/yr | MIT | MIT |
 
+*[rtk](https://github.com/rtk-ai/rtk) deliberately isn't in this table — it sits at a different layer (runtime shell-output compression vs structural audit). See the disambiguation below.*
+
 **Quick disambiguation:**
 - boost and [Plouto](https://plouto.ai) are siblings. boost is the local optimization loop for the developer at their machine; Plouto is the SaaS that aggregates the same signals across a team and answers the four questions every engineering leader has about AI usage — cost-per-ticket, productivity, resilience, best practices. Use boost on your machine; if your team needs a shared view, Plouto is the upgrade.
 - [Memco](https://memco.ai) sits at a different layer — it's a shared memory store that agents call into to skip work they've already done. Complementary, not competing: *Memco remembers what worked; boost optimizes what's still wasting tokens.*

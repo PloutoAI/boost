@@ -23,6 +23,14 @@
  *
  * Single aggregate finding; top stems by total bytes shown as evidence.
  * Cold-start gate: ≥7 days of data.
+ *
+ * Backfill note: `bash_command_stem` is captured at normalize time, so
+ * events ingested before the field was added carry `stem = null` and are
+ * filtered out by the SQL. On a freshly-upgraded install the advisory
+ * therefore "warms up" — it sees only sessions ingested after upgrade
+ * and starts firing once enough recent activity has accumulated. To
+ * force immediate detection, the user can delete `~/.boost/db.sqlite`
+ * to re-ingest the JSONL log from scratch.
  */
 import type { Finding } from "../types.ts";
 import type { StrategyDefinition } from "../strategy.ts";

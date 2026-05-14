@@ -664,7 +664,8 @@ export function shellOutputBreakdownLastNDays(
               SUM(CAST(json_extract(r.payload_json, '$.result_size_bytes') AS INTEGER)) AS total_bytes
          FROM events u
          JOIN events r
-           ON json_extract(r.payload_json, '$.tool_use_id')
+           ON r.session_id = u.session_id
+          AND json_extract(r.payload_json, '$.tool_use_id')
             = json_extract(u.payload_json, '$.tool_use_id')
         WHERE u.event_type = 'tool_use'
           AND r.event_type = 'tool_result'

@@ -8,7 +8,7 @@ description: |
   files + sample session activity, produces a real SKILL.md following
   Anthropic's canonical format, writes a draft for review.
 allowed-tools:
-  - Bash(bun /Users/mouradtrabelsi/.claude/plugins/cache/boost/boost/0.1.0/bin/boost.mjs reskill *)
+  - Bash(bun:*)
   - Read
   - Write
   - Glob

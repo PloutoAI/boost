@@ -9,11 +9,11 @@ description: |
   Reads session content via Claude (not just boost's SQL bucketing) and
   drafts skills for review.
 allowed-tools:
-  - Bash(bun /Users/mouradtrabelsi/.claude/plugins/cache/boost/boost/0.1.0/bin/boost.mjs reskill *)
-  - Bash(ls *)
-  - Bash(cat *)
-  - Bash(grep *)
-  - Bash(wc *)
+  - Bash(bun:*)
+  - Bash(ls:*)
+  - Bash(cat:*)
+  - Bash(grep:*)
+  - Bash(wc:*)
   - Read
   - Write
   - Glob

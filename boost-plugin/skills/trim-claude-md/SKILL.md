@@ -9,11 +9,11 @@ description: |
   and generic best-practice trivia, keeps idiosyncratic rules, pipes the
   result through boost's reversible apply pipeline.
 allowed-tools:
-  - Bash(bun /Users/mouradtrabelsi/.claude/plugins/cache/boost/boost/0.1.0/bin/boost.mjs *)
-  - Bash(wc *)
-  - Bash(ls -lt *)
-  - Bash(touch -t *)
-  - Bash(sqlite3 *)
+  - Bash(bun:*)
+  - Bash(wc:*)
+  - Bash(ls:*)
+  - Bash(touch:*)
+  - Bash(sqlite3:*)
   - Read
   - Write
 ---

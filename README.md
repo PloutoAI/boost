@@ -1,94 +1,127 @@
 # boost
 
-> **The offline optimization loop for Claude Code.**
-> See where tokens are wasted. Apply reversible fixes. Run it again. Watch the waste go down. No TUI, no network, no telemetry, no accounts.
+> **The reversible config-optimization loop for Claude Code.**
+> boost detects token waste in your Claude Code sessions, applies fixes with cryptographic backups, and — when a fix needs language synthesis — drives Claude itself via plugin skills to do the rewriting. boost owns trust; Claude owns taste. Offline, no network, no accounts.
 
-Install in Claude Code (recommended):
+## Install
+
+Inside Claude Code (recommended):
 
 ```
 /plugin install PloutoAI/boost
 ```
 
-Then `/boost:audit` to see findings, `/boost:fix <strategy-id>` to apply them.
+Then `/boost:audit` to see findings, `/boost:fix <strategy-id>` to apply one, `/boost:revert` to undo. Skills like `trim-claude-md`, `reskill`, and `draft-project-skill` auto-activate when you describe what you want in natural language.
 
-## The loop
+## How boost actually works — the dual-engine pattern
+
+boost is two cooperating engines meeting at a `stdin` seam:
 
 ```
-   observe ── diagnose ── fix ── verify
-      ▲                            │
-      └─────── revert ─────────────┘
+  Claude Code sessions  (~/.claude/projects/*.jsonl)
+        │
+        ▼
+  ┌──────────────────────┐
+  │ boost CLI            │   deterministic substrate
+  │  detect waste        │     SQL + heuristics
+  │  rank findings       │     SHA-256 backup + revert
+  │  apply (reversible)  │     offline, no network
+  └─────────┬────────────┘
+            │  fix needs language synthesis?
+            ▼
+  ┌──────────────────────┐
+  │ Plugin skill         │   probabilistic engine
+  │  reads sessions      │     Claude does the soft work
+  │  drafts content      │     driven by SKILL.md
+  │  pipes to boost      │     brings its own LLM
+  └─────────┬────────────┘
+            │  cat trim.md | boost fix … --content-from-stdin
+            ▼
+  ┌──────────────────────┐
+  │ boost CLI            │   back to deterministic
+  │  validates input     │     for the write boundary
+  │  backs up + applies  │
+  │  records operation   │     (later: boost revert)
+  └──────────────────────┘
 ```
 
-boost reads your Claude Code session logs, surfaces the five waste signals below, lets you apply any of them with one keystroke, and lets you undo any fix you regret. Run it weekly, run it in CI, run it before a release — same loop every time.
+The CLI never calls an LLM. The skill never writes to your config directly — it drafts, then routes the change through boost's apply path. boost trusts the LLM to write good prose; the LLM trusts boost to handle integrity, backup, and revert.
 
-## What boost spots
+That split is the whole point. Most cost tools either measure (and stop) or move data to a SaaS dashboard. boost is the only OSS tool that closes the loop by writing reversibly to your config — and the only one whose architecture is built around the soft/hard split that real config optimization requires.
 
-- **CLAUDE.md bloat.** Counts the words in your global `CLAUDE.md`. Over 4k words ships overhead with every turn. boost stashes the original and replaces it with a stub.
-- **Model-mix imbalance.** If one model is ≥80% of your uncached spend over a week, boost surfaces the breakdown and a cheaper-model escalation path.
-- **Retry storms.** Clusters of `api_error` retries in a session, ranked by total back-off wait.
-- **Subagent cost share.** Per-session Task() spend as a share of uncached tokens. Surfaces the "every question becomes a Task()" anti-pattern.
-- **Auto-compact overuse.** Sessions hitting `auto_compact` 3+ times — context refilled faster than the model can hold it.
-- **Unshipped-cost (outcome attribution).** Per-session $ tied to git commits in the session's working directory. Surfaces expensive sessions that never produced a commit — *"$87 in velo, no commits"* — so you can decide if the spend was exploration or waste.
-- **No skills installed.** Active user with zero skills → run `boost reskill` to draft project skills from observed activity.
-- **Unused MCP / unused skills.** Each connected MCP server ships its full tool schema with every request (~600–1,200 tokens). boost flags servers and skills with no activations in the last 60 days and offers to disable or archive them.
+## What it does today
 
-Per-finding output shows projected $ savings (e.g. *"Trim global CLAUDE.md ... -3% · ≈$63/wk"*). Pricing is a bundled snapshot — no network call.
+`/boost:audit` shows findings tagged for what you can do with them:
 
-Every fix is a reversible operation. `boost revert` rolls back any of them. The loop closes — and stays closed.
+**▶  Reversible fixes** — apply with `/boost:fix <id>`, undo with `/boost:revert`:
+
+- **`claude-md-bloat`** — your global `CLAUDE.md` is over 4k words. The `trim-claude-md` skill does the actual rewrite using Claude; the CLI applies + makes it revertible.
+- **`unused-mcp-disable`** — flags MCP servers with no activations in 60 days. CLI sets `mcpServers.X.disabled = true` directly.
+- *(`unused-skill-archive` exists too but is dormant pending Claude Code's OTel signal in v0.2.)*
+
+**·  Advisories** — no automated fix, just signal:
+
+- Model-mix imbalance (≥80% of weekly spend in one model)
+- Retry storms (clustered `api_error` retries per session)
+- Subagent cost share (Task() spend share of session uncached tokens)
+- Auto-compact overuse (≥3 compacts per session)
+- Unshipped-cost — session $ tied to git commits; flags expensive sessions that produced no shipped work
+- Verbose shell output — Bash responses eating meaningful weekly share; points at [rtk](https://github.com/rtk-ai/rtk) for that layer
+- No skills installed — run `boost reskill` to draft project skills from observed activity
+
+Each finding shows projected $ savings against a bundled price table (no network call).
+
+## Where boost sits in the stack
+
+Different tools own different layers. boost owns the **structural-fix** layer — what's in `CLAUDE.md`, which MCP servers are loaded, what skills you've installed.
+
+| Layer | Tools | Mechanism |
+|---|---|---|
+| Runtime shell output | [rtk](https://github.com/rtk-ai/rtk) | Intercepts CLI commands; compresses output before Claude reads it |
+| In-product cost | Claude Code's `/cost`, `/usage`, `/context` | Native; live numbers, no install |
+| Session measurement | [ccusage](https://github.com/ryoppippi/ccusage), [CodeBurn](https://github.com/getagentseal/codeburn) | Read logs; show numbers; no writes |
+| Team observability | [Plouto](https://plouto.ai), SaaS dashboards | Aggregate across users; team-level governance |
+| Agent memory | [Memco](https://memco.ai) | Replay prior agent solutions; skip redoing work |
+| **Structural config fixes** | **boost** | **Detect waste in logs; write config reversibly via deterministic CLI + skill-mediated synthesis** |
+
+They stack. A heavy Claude Code user might reasonably run rtk + boost (rtk shrinks per-command output; boost trims structural overhead), glance at ccusage for the headline number, and ignore the rest.
+
+**On native Claude Code obsolescence risk.** Anthropic could ship `/cost --insights` tomorrow and absorb some of boost's detectors. The detectors aren't the moat; the moat is the *substrate*: reversible writes with cryptographic integrity, plus the dual-engine pattern that lets Claude do creative work on your config without giving Claude the filesystem keys. That part is harder to absorb because it's an architectural choice, not a feature.
+
+**On Plouto positioning.** boost and [Plouto](https://plouto.ai) are siblings under the same org. boost is the local loop for the developer at their machine; Plouto is the SaaS that aggregates the same signals across a team. Use boost on your machine; reach for Plouto if your team needs a shared view.
 
 ## Privacy
 
-boost is **offline-only**. No network calls. No telemetry. No accounts. No prompt or completion content is persisted, transmitted, or analyzed — the JSONL parser walks files on disk to extract structural metadata (token counts, tool names, model IDs, event timestamps) and discards prompt bytes immediately.
-
-State lives under `~/.boost/`:
+boost is **offline-only**. No network calls. No telemetry. No accounts. The JSONL parser walks files on disk to extract structural metadata (token counts, tool names, model IDs, event timestamps) and discards prompt bytes immediately. State lives under `~/.boost/`:
 
 - `db.sqlite` — local event log + dedup state
-- `backups/` — file backups for revert
+- `backups/` — file backups for revert (SHA-256 integrity)
 - `operations/` — reversible operation audit trail
 - `identity.json` — random anonymous IDs (no real machine identifiers)
 
-## Where boost fits
-
-| | boost | [Plouto](https://plouto.ai) | [Memco](https://memco.ai) | [ccusage](https://github.com/ryoppippi/ccusage) | [CodeBurn](https://github.com/getagentseal/codeburn) |
-|---|---|---|---|---|---|
-| Scope | Individual dev | Engineering team | Cross-tool agents | Individual dev | Individual dev |
-| Verb | Optimize | Observe + govern | Remember + replay | Measure | Dashboard |
-| Data flow | Local only | SaaS dashboard | Cloud / on-prem memory | Local | Local |
-| Fixes config | ✓ | — | — | — | — |
-| Reversible | ✓ | — | — | — | — |
-| Offline | ✓ | — | — | ✓ | ✓ |
-| License | MIT | Free tier + paid | Free tier + $9k/yr | MIT | MIT |
-
-*[rtk](https://github.com/rtk-ai/rtk) deliberately isn't in this table — it sits at a different layer (runtime shell-output compression vs structural audit). See the disambiguation below.*
-
-**Quick disambiguation:**
-- boost and [Plouto](https://plouto.ai) are siblings. boost is the local optimization loop for the developer at their machine; Plouto is the SaaS that aggregates the same signals across a team and answers the four questions every engineering leader has about AI usage — cost-per-ticket, productivity, resilience, best practices. Use boost on your machine; if your team needs a shared view, Plouto is the upgrade.
-- [Memco](https://memco.ai) sits at a different layer — it's a shared memory store that agents call into to skip work they've already done. Complementary, not competing: *Memco remembers what worked; boost optimizes what's still wasting tokens.*
-- ccusage and CodeBurn are measurement and dashboard tools — they tell you what your spend looks like. boost is the only one in this comparison that closes the loop by writing to your config, which is also why it ships with the threat model and revert that the others don't need.
-- [rtk](https://github.com/rtk-ai/rtk) operates at a different layer too: it's a shell-output compressor that intercepts CLI commands (`git`, `docker`, `cargo`, …) and cuts the noise before Claude reads it. **Complementary, not competing** — rtk shrinks per-command input tokens at runtime; boost fixes the *structural* waste (bloated `CLAUDE.md`, unused MCP servers, advisories) between sessions. If your bash output is a meaningful slice of weekly spend, boost will surface a `shell-output-verbose-advisory` pointing you at rtk for that specific fat. Run both.
+See [docs/internals/threat-model.md](docs/internals/threat-model.md) for the full security model and known open gaps.
 
 ## Commands
 
 ```
 boost                       # print findings (plain text)
-boost apply <strategy-id>   # apply one finding's fix
-boost apply --all           # apply every safe-to-apply clear-win
+boost fix <strategy-id>     # apply one finding's reversible fix
+boost fix --all             # apply every safe-to-apply clear-win
 boost reskill               # surface skill opportunities from repeated work
 boost reskill <name>        # create a local skill draft at ~/.boost/drafts/skills/
 boost revert [id]           # pick (or specify) an operation to undo
+boost outcomes              # session $ correlated to shipped commits
 ```
 
-Flags (top-level):
+Top-level flags:
 
 ```
 --json               # structured JSON to stdout
---check              # non-interactive check; non-zero exit on findings ≥ medium severity
+--check              # non-interactive; non-zero exit on findings ≥ medium severity
 --debug              # full stack traces on errors
 ```
 
-`--check` and `--json` combine: JSON goes to stdout AND the exit code reflects the check.
-
-`--check` reads your local `~/.claude/projects/*.jsonl` — same as everything else in boost — so it's a fit for local shell hooks (pre-push, cron) on your own machine, not a CI runner gate. CI containers don't have the data.
+`--check` + `--json` combine: JSON to stdout and exit code reflects the check. `--check` reads `~/.claude/projects/*.jsonl` locally — fit for shell hooks (pre-push, cron) on your own machine, not a CI runner gate. CI containers don't have the data.
 
 ## Installation
 
@@ -98,9 +131,9 @@ Flags (top-level):
 /plugin install PloutoAI/boost
 ```
 
-After install, `/boost:audit` to see findings, `/boost:fix <id>` to apply them. Skills like `trim-claude-md`, `reskill`, `draft-project-skill` auto-activate when you describe what you want in natural language.
+After install: `/boost:audit` to see findings, `/boost:fix <id>` to apply, `/boost:revert` to undo. Skills auto-activate when you describe what you want in natural language.
 
-**As a CLI** (for terminal use, pre-push hooks, scripting):
+**As a CLI** (terminal use, pre-push hooks, scripting):
 
 ```sh
 git clone https://github.com/PloutoAI/boost.git
@@ -113,7 +146,7 @@ Requires Bun ≥ 1.1.0. An npm-published version (`npx @plouto/boost`) is planne
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). For security disclosures, see [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security disclosures: [SECURITY.md](SECURITY.md).
 
 ## License
 

@@ -640,3 +640,49 @@ export function sessionCompactBreakdownLastNDays(
     }));
 }
 
+/** Per-Bash-command-stem response-size breakdown over the window.
+ *  Only successful tool_results above `minBytes` count toward the sum. */
+export type ShellOutputStem = {
+  stem: string;
+  calls: number;
+  totalBytes: number;
+};
+
+export function shellOutputBreakdownLastNDays(
+  db: BunDatabase,
+  days: number,
+  minBytes: number,
+): ShellOutputStem[] {
+  const ago = new Date(Date.now() - days * DAY_MS).toISOString();
+  const rows = db
+    .query<
+      { stem: string | null; calls: number | null; total_bytes: number | null },
+      [string, number]
+    >(
+      `SELECT json_extract(u.payload_json, '$.bash_command_stem') AS stem,
+              COUNT(*) AS calls,
+              SUM(CAST(json_extract(r.payload_json, '$.result_size_bytes') AS INTEGER)) AS total_bytes
+         FROM events u
+         JOIN events r
+           ON json_extract(r.payload_json, '$.tool_use_id')
+            = json_extract(u.payload_json, '$.tool_use_id')
+        WHERE u.event_type = 'tool_use'
+          AND r.event_type = 'tool_result'
+          AND u.timestamp_iso >= ?
+          AND json_extract(u.payload_json, '$.tool_name') = 'Bash'
+          AND json_extract(u.payload_json, '$.bash_command_stem') IS NOT NULL
+          AND json_extract(r.payload_json, '$.success') = 1
+          AND CAST(json_extract(r.payload_json, '$.result_size_bytes') AS INTEGER) >= ?
+        GROUP BY stem`,
+    )
+    .all(ago, minBytes);
+
+  return rows
+    .filter((r) => typeof r.stem === "string" && r.stem.length > 0)
+    .map((r) => ({
+      stem: r.stem as string,
+      calls: r.calls ?? 0,
+      totalBytes: r.total_bytes ?? 0,
+    }));
+}
+

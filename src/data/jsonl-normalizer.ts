@@ -184,6 +184,11 @@ function insertToolBlocks(
     if (type === "tool_use") {
       const toolName = strOrNull(b["name"]) ?? "";
       const toolUseId = strOrNull(b["id"]) ?? "";
+      // For Bash, keep only the first whitespace-delimited token of the
+      // command — never the full argument string. The stem is enough to
+      // cluster spend ("git", "docker", "cargo"...) without retaining
+      // potentially sensitive flags, paths, or env-var prefixes.
+      const bashStem = toolName === "Bash" ? extractCommandStem(b["input"]) : null;
       inserted += insertEvent(ctx, {
         event_id: `${parent.eventId}#tool_use:${blockIdx}`,
         timestamp_iso: parent.timestamp,
@@ -194,6 +199,7 @@ function insertToolBlocks(
           tool_name: toolName,
           tool_use_id: toolUseId,
           mcp_server_name: parseMcpServerName(toolName),
+          bash_command_stem: bashStem,
           parent_event_id: parent.eventId,
         },
       });
@@ -248,4 +254,19 @@ function insertEvent(ctx: NormalizeContext, row: EventRow): number {
     JSON.stringify(row.payload),
   );
   return r.changes > 0 ? 1 : 0;
+}
+
+/**
+ * First whitespace-delimited token of a Bash `input.command`. Used to
+ * cluster shell spend by tool without retaining argument strings.
+ * Returns null if the input doesn't have a usable command string.
+ */
+function extractCommandStem(input: unknown): string | null {
+  if (typeof input !== "object" || input === null) return null;
+  const cmd = (input as Record<string, unknown>)["command"];
+  if (typeof cmd !== "string") return null;
+  const trimmed = cmd.trim();
+  if (trimmed.length === 0) return null;
+  const firstToken = trimmed.split(/\s+/, 1)[0] ?? "";
+  return firstToken.length > 0 ? firstToken : null;
 }

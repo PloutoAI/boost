@@ -63,6 +63,7 @@ State lives under `~/.boost/`:
 - boost and [Plouto](https://plouto.ai) are siblings. boost is the local optimization loop for the developer at their machine; Plouto is the SaaS that aggregates the same signals across a team and answers the four questions every engineering leader has about AI usage — cost-per-ticket, productivity, resilience, best practices. Use boost on your machine; if your team needs a shared view, Plouto is the upgrade.
 - [Memco](https://memco.ai) sits at a different layer — it's a shared memory store that agents call into to skip work they've already done. Complementary, not competing: *Memco remembers what worked; boost optimizes what's still wasting tokens.*
 - ccusage and CodeBurn are measurement and dashboard tools — they tell you what your spend looks like. boost is the only one in this comparison that closes the loop by writing to your config, which is also why it ships with the threat model and revert that the others don't need.
+- [rtk](https://github.com/rtk-ai/rtk) operates at a different layer too: it's a shell-output compressor that intercepts CLI commands (`git`, `docker`, `cargo`, …) and cuts the noise before Claude reads it. **Complementary, not competing** — rtk shrinks per-command input tokens at runtime; boost fixes the *structural* waste (bloated `CLAUDE.md`, unused MCP servers, advisories) between sessions. If your bash output is a meaningful slice of weekly spend, boost will surface a `shell-output-verbose-advisory` pointing you at rtk for that specific fat. Run both.
 
 ## Commands
 

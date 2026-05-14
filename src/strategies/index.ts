@@ -10,6 +10,7 @@ import claudeMdBloat from "./claude-md-bloat.ts";
 import modelMixAdvisory from "./model-mix-advisory.ts";
 import noSkillsAdvisory from "./no-skills-advisory.ts";
 import retryStormAdvisory from "./retry-storm-advisory.ts";
+import shellOutputVerboseAdvisory from "./shell-output-verbose-advisory.ts";
 import subagentCostAdvisory from "./subagent-cost-advisory.ts";
 import unshippedCostAdvisory from "./unshipped-cost-advisory.ts";
 import unusedMcpDisable from "./unused-mcp-disable.ts";
@@ -21,6 +22,7 @@ export const strategies: StrategyDefinition[] = [
   modelMixAdvisory,
   noSkillsAdvisory,
   retryStormAdvisory,
+  shellOutputVerboseAdvisory,
   subagentCostAdvisory,
   unshippedCostAdvisory,
   unusedMcpDisable,

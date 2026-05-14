@@ -62,16 +62,3 @@ Use temp file + atomic rename:
 Newer Claude Code versions may write JSONC (JSON with comments) to settings.json. Standard `JSON.parse` will fail.
 
 Use `jsonc-parser`. When writing, preserve comments and formatting if you can — or document that boost will normalize the file on first write.
-
-## B15.6 TUI dies on weird terminals
-
-Test in:
-- iTerm2 / Terminal.app (macOS)
-- Ubuntu default terminal
-- Windows Terminal
-- VSCode integrated terminal
-- SSH session
-- tmux/screen
-- CI environments (`TERM=dumb`)
-
-Ink handles most of these but has known issues. Have the fallback to plain output ready.

@@ -309,61 +309,6 @@ export function dailySeries(db: BunDatabase, windowDays: number): DailyPoint[] {
   }));
 }
 
-/**
- * Per-day per-model uncached-token breakdown. Used by the stacked daily
- * bar chart to show model mix × time in one view.
- *
- * Shape: one entry per UTC date in the window, each carrying an array of
- * `{ model, tokens }` pairs sorted by tokens desc.
- */
-export type DailyModelPoint = {
-  date: string;
-  perModel: Array<{ model: string; tokens: number }>;
-};
-
-export function dailyByModelSeries(db: BunDatabase, windowDays: number): DailyModelPoint[] {
-  const since = sinceIso(windowDays);
-  const rows = db
-    .query<
-      {
-        date: string;
-        model: string | null;
-        uncached: number | null;
-      },
-      [string]
-    >(
-      `SELECT
-         substr(timestamp_iso, 1, 10) AS date,
-         json_extract(payload_json, '$.model') AS model,
-         COALESCE(SUM(
-           json_extract(payload_json, '$.input_tokens') +
-           json_extract(payload_json, '$.output_tokens') +
-           COALESCE(json_extract(payload_json, '$.cache_creation_tokens'), 0)
-         ), 0) AS uncached
-       FROM events
-       WHERE event_type = 'api_request' AND timestamp_iso >= ?
-       GROUP BY date, model
-       ORDER BY date ASC, uncached DESC`,
-    )
-    .all(since);
-
-  const byDate = new Map<string, Array<{ model: string; tokens: number }>>();
-  for (const r of rows) {
-    if (!r.date) continue;
-    const arr = byDate.get(r.date) ?? [];
-    if (typeof r.model === "string" && r.model.length > 0) {
-      arr.push({ model: r.model, tokens: Math.round(r.uncached ?? 0) });
-    }
-    byDate.set(r.date, arr);
-  }
-  const out: DailyModelPoint[] = [];
-  for (const [date, perModel] of byDate.entries()) {
-    out.push({ date, perModel });
-  }
-  out.sort((a, b) => a.date.localeCompare(b.date));
-  return out;
-}
-
 function sinceIso(windowDays: number): string {
   return new Date(Date.now() - windowDays * DAY_MS).toISOString();
 }

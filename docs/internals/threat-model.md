@@ -155,8 +155,7 @@ boost is not designed to defend against, and explicitly does not claim to defend
 
 - **A compromised user account.** If an attacker has the user's credentials or filesystem write access, no application-layer defense is sufficient. boost is a tool to help the user, not a security boundary against malicious actors with the user's privileges.
 - **Side-channel attacks** via filesystem timing, cache contention, etc.
-- **Compromise of dependencies.** We pin versions and run `bun audit`, but a sufficiently advanced supply-chain attack on `ink` or similar is outside our defense.
-- **Local privilege escalation through TUI rendering bugs.** We rely on Ink/React for terminal output; bugs in those libraries are not boost bugs.
+- **Compromise of dependencies.** We pin versions and run `bun audit`, but a sufficiently advanced supply-chain attack on a transitive dependency is outside our defense.
 - **Network-level attacks.** boost has no network in v0.1. When network features are added in future versions, this section will be updated.
 - **Information disclosure to other processes on the same machine.** Standard Unix permissions apply; we don't add encryption-at-rest for `~/.boost/`.
 - **A malicious local strategy.** v0.1 only ships built-in, version-pinned strategies. When dynamic strategy loading is added in v0.2+, this section will need significant expansion.

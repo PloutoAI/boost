@@ -22,5 +22,20 @@
     "./commands/fix.md",
     "./commands/revert.md",
     "./commands/outcomes.md"
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/boost.mjs plouto-sync",
+            "timeout": 10,
+            "async": true,
+            "statusMessage": "Syncing workspace policies from Plouto…"
+          }
+        ]
+      }
+    ]
+  }
 }

@@ -23,6 +23,7 @@ import { buildCheck } from "./output/check.ts";
 import { renderPlain, shouldUseColor } from "./output/plain.ts";
 import { applyCommand } from "./apply-cli.ts";
 import { revertCommand } from "./revert-cli.ts";
+import { runPloutoSync } from "./plouto/sync.ts";
 import { buildYieldReport, renderYieldReport } from "./output/yield.ts";
 import { buildReskillReport, createSkillDraft, renderReskillReport } from "./reskill.ts";
 import { summarize, modelUsageLastNDays } from "./summary.ts";
@@ -112,6 +113,28 @@ program
       if (opts.debug) console.error(err);
       else console.error(`boost fix: ${msg}`);
       process.exit(2);
+    }
+  });
+
+program
+  .command("plouto-sync")
+  .description("Apply workspace policies from Plouto (used by the SessionStart hook).")
+  .action(async () => {
+    // --debug / --json are declared at the top-level program (so they
+    // work uniformly across every subcommand) — commander captures
+    // them there, not on the subcommand. Re-detect via argv so this
+    // handler still sees the user's choices.
+    const opts = {
+      json: process.argv.includes("--json"),
+      debug: process.argv.includes("--debug"),
+    };
+    try {
+      await runPloutoSync(opts);
+    } catch (err) {
+      if (opts.debug) console.error(err);
+      else console.error(`boost plouto-sync: ${(err as Error).message}`);
+      // Still exit 0 — SessionStart must never block Claude Code on us.
+      process.exit(0);
     }
   });
 

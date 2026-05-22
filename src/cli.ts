@@ -24,6 +24,7 @@ import { renderPlain, shouldUseColor } from "./output/plain.ts";
 import { applyCommand } from "./apply-cli.ts";
 import { revertCommand } from "./revert-cli.ts";
 import { runPloutoSync } from "./plouto/sync.ts";
+import { runInstall } from "./plouto/install.ts";
 import { buildYieldReport, renderYieldReport } from "./output/yield.ts";
 import { buildReskillReport, createSkillDraft, renderReskillReport } from "./reskill.ts";
 import { summarize, modelUsageLastNDays } from "./summary.ts";
@@ -112,6 +113,35 @@ program
       const msg = (err as Error).message;
       if (opts.debug) console.error(err);
       else console.error(`boost fix: ${msg}`);
+      process.exit(2);
+    }
+  });
+
+program
+  .command("install")
+  .description("Wire up Plouto's enforcement layer (~/.claude/settings.json — marketplace + plugin + token).")
+  .requiredOption("--token <token>", "Plouto bearer token (mint at https://team.plouto.ai/settings/tokens)")
+  .option("--api-url <url>", "Plouto API URL", "https://team.plouto.ai")
+  .option("--managed", "write to the system managed-settings.json (org-wide; requires sudo)")
+  .action(async (opts: { token: string; apiUrl: string; managed?: boolean }) => {
+    const debug = process.argv.includes("--debug");
+    try {
+      const result = runInstall({
+        token: opts.token,
+        apiUrl: opts.apiUrl,
+        managed: opts.managed,
+        debug,
+      });
+      const verb = result.created ? "created" : "updated";
+      const scope = result.managed ? "managed (org-wide)" : "per-user";
+      process.stdout.write(
+        `boost install: ${verb} ${result.path} (${scope}).\n` +
+        `Restart Claude Code; SessionStart will sync policies from Plouto on the next session.\n`,
+      );
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (debug) console.error(err);
+      else console.error(`boost install: ${msg}`);
       process.exit(2);
     }
   });

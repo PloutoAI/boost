@@ -1,7 +1,7 @@
 {
-  "name": "boost",
+  "name": "plouto",
   "version": "0.1.0",
-  "description": "Local optimization loop for Claude Code — find token waste, apply reversible fixes.",
+  "description": "Plouto's enforcement layer for Claude Code — applies workspace strategies (skill rollouts, model recommendations, MCP bans) on every SessionStart.",
   "author": {
     "name": "Plouto",
     "url": "https://plouto.ai"

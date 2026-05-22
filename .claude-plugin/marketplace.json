@@ -6,8 +6,8 @@
   },
   "plugins": [
     {
-      "name": "boost",
-      "description": "Local optimization loop for Claude Code — find token waste, apply reversible fixes.",
+      "name": "plouto",
+      "description": "Plouto's enforcement layer for Claude Code — applies workspace strategies (skill rollouts, model recommendations, MCP bans) on every SessionStart.",
       "source": "./boost-plugin"
     }
   ]

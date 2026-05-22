@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-22
+
+### Added — Plouto enforcement layer
+
+`boost` is now also Plouto's enforcement tier. When Claude Code starts a
+session, a SessionStart hook fetches the workspace's active strategies
+from Plouto and applies them on the engineer's machine — skill installs,
+recommended-model writes, etc. — then reports back what landed.
+
+- **`boost install --token <plto_…>`** — one-line setup. Merges the
+  marketplace registration, plugin enable, and Plouto credentials into
+  `~/.claude/settings.json` (or `--managed` for the OS-specific
+  managed-settings path). Existing settings preserved via
+  `jsonc-parser`'s comment-aware `modify()` API.
+
+- **`boost plouto-sync`** — fetches `/api/plugin/strategies`, dispatches
+  each action through the per-kind apply functions (skill install/remove,
+  model recommend), POSTs receipts to `/api/plugin/strategies/applied`.
+  Best-effort: never blocks Claude Code startup, never throws to the
+  hook layer. Silently no-ops when `PLOUTO_TOKEN` isn't set.
+
+- **SessionStart hook** in `boost-plugin/.claude-plugin/plugin.json` —
+  `async: true`, 10s timeout. Runs on every Claude Code session start
+  so policy changes propagate within ~5s of the next session.
+
+- New plugin id: install with `/plugin install plouto@boost` (the
+  marketplace stays "boost"; the plugin within it is named "plouto"
+  because that's what it does — enforce Plouto's policies).
+
+Phase 1 scope:
+- `skill` rollout/ban — placeholder `SKILL.md` pointing at the source
+  repo. Phase 2 will git-pull the actual skill content.
+- `model` rollout — writes `<cwd>/.claude/settings.local.json:model`.
+- `mcp` / `claude_md` / `prompt` — receipt status `skipped` with note.
+
 ### Changed
 
 - Renamed the OSS package and CLI from `loop` to `boost` (`@plouto/boost`, binary `boost`) and moved local state to `~/.boost` / `$BOOST_HOME`.

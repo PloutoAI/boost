@@ -1,7 +1,7 @@
 {
   "name": "@PloutoAI/boost",
-  "version": "0.1.0",
-  "description": "Local-only optimization for Claude Code with audit, apply, backup, and revert.",
+  "version": "0.2.0",
+  "description": "Claude Code optimization + Plouto's enforcement layer. Audit locally; sync workspace strategies on every SessionStart.",
   "keywords": [
     "claude-code",
     "claude",

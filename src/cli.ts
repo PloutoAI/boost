@@ -25,6 +25,7 @@ import { applyCommand } from "./apply-cli.ts";
 import { revertCommand } from "./revert-cli.ts";
 import { runPloutoSync } from "./plouto/sync.ts";
 import { runInstall } from "./plouto/install.ts";
+import { runOAuthLogin } from "./plouto/oauth.ts";
 import { buildYieldReport, renderYieldReport } from "./output/yield.ts";
 import { buildReskillReport, createSkillDraft, renderReskillReport } from "./reskill.ts";
 import { summarize, modelUsageLastNDays } from "./summary.ts";
@@ -119,17 +120,19 @@ program
 
 program
   .command("install")
-  .description("Wire up Plouto's enforcement layer (~/.claude/settings.json — marketplace + plugin + token).")
-  .requiredOption("--token <token>", "Plouto bearer token (mint at https://team.plouto.ai/settings/tokens)")
+  .description("Wire up Plouto's enforcement layer (~/.claude/settings.json — marketplace + plugin + token). Runs OAuth in your browser unless --token is passed.")
+  .option("--token <token>", "Plouto bearer token (mint manually at /settings/tokens). Omit to use the OAuth flow.")
   .option("--api-url <url>", "Plouto API URL", "https://team.plouto.ai")
   .option("--managed", "write to the system managed-settings.json (org-wide; requires sudo)")
-  .action(async (opts: { token: string; apiUrl: string; managed?: boolean }) => {
+  .option("--no-auth", "fail rather than running OAuth when --token is missing (CI use)")
+  .action(async (opts: { token?: string; apiUrl: string; managed?: boolean; auth?: boolean }) => {
     const debug = process.argv.includes("--debug");
     try {
-      const result = runInstall({
+      const result = await runInstall({
         token: opts.token,
         apiUrl: opts.apiUrl,
         managed: opts.managed,
+        noAuth: opts.auth === false,
         debug,
       });
       const verb = result.created ? "created" : "updated";
@@ -142,6 +145,29 @@ program
       const msg = (err as Error).message;
       if (debug) console.error(err);
       else console.error(`boost install: ${msg}`);
+      process.exit(2);
+    }
+  });
+
+program
+  .command("auth")
+  .description("Plouto authentication subcommands.")
+  .command("login")
+  .description("Re-run the OAuth flow and update ~/.claude/settings.json with a fresh token.")
+  .option("--api-url <url>", "Plouto API URL", "https://team.plouto.ai")
+  .action(async (opts: { apiUrl: string }) => {
+    const debug = process.argv.includes("--debug");
+    try {
+      const { token, apiUrl } = await runOAuthLogin({ apiUrl: opts.apiUrl });
+      const result = await runInstall({ token, apiUrl, debug });
+      process.stdout.write(
+        `boost auth login: token written to ${result.path}.\n` +
+        `Restart Claude Code; the new token applies on the next session.\n`,
+      );
+    } catch (err) {
+      const msg = (err as Error).message;
+      if (debug) console.error(err);
+      else console.error(`boost auth login: ${msg}`);
       process.exit(2);
     }
   });

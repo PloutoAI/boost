@@ -26,6 +26,8 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { applyEdits, modify, parse } from "jsonc-parser";
 
+import { runOAuthLogin } from "./oauth.ts";
+
 const MARKETPLACE_KEY = "boost";
 const PLUGIN_KEY = "plouto@boost";
 const GITHUB_REPO = "PloutoAI/boost";
@@ -35,6 +37,13 @@ export interface InstallOptions {
   apiUrl?: string;
   managed?: boolean;
   debug?: boolean;
+  /**
+   * When ``--token`` is not provided, default to running the OAuth
+   * localhost-redirect flow so the engineer never copy-pastes a token.
+   * Set to false on CI / non-interactive contexts where opening a
+   * browser doesn't make sense.
+   */
+  noAuth?: boolean;
 }
 
 export interface InstallResult {
@@ -43,14 +52,23 @@ export interface InstallResult {
   managed: boolean;
 }
 
-export function runInstall(opts: InstallOptions): InstallResult {
-  if (!opts.token) {
-    throw new Error(
-      "PLOUTO_TOKEN required. Pass --token <plto_…>, or " +
-      "mint one at https://team.plouto.ai/settings/tokens.",
-    );
-  }
+export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
   const apiUrl = (opts.apiUrl ?? "https://team.plouto.ai").replace(/\/+$/, "");
+
+  let token = opts.token;
+  if (!token) {
+    if (opts.noAuth) {
+      throw new Error(
+        "PLOUTO_TOKEN required. Pass --token <plto_…>, or drop --no-auth to " +
+        "run the OAuth login flow.",
+      );
+    }
+    // Browser-based OAuth: opens a tab, completes login on Plouto,
+    // captures the redirected token on a localhost port. Same pattern
+    // gh / gcloud / fly use.
+    const result = await runOAuthLogin({ apiUrl });
+    token = result.token;
+  }
 
   const path = opts.managed ? managedSettingsPath() : userSettingsPath();
   const dir = dirname(path);

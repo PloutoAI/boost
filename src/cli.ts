@@ -25,7 +25,7 @@ import { applyCommand } from "./apply-cli.ts";
 import { revertCommand } from "./revert-cli.ts";
 import { runPloutoSync } from "./plouto/sync.ts";
 import { runInstall } from "./plouto/install.ts";
-import { runOAuthLogin } from "./plouto/oauth.ts";
+import { runDeviceAuth } from "./plouto/device-auth.ts";
 import { buildYieldReport, renderYieldReport } from "./output/yield.ts";
 import { buildReskillReport, createSkillDraft, renderReskillReport } from "./reskill.ts";
 import { summarize, modelUsageLastNDays } from "./summary.ts";
@@ -158,7 +158,7 @@ program
   .action(async (opts: { apiUrl: string }) => {
     const debug = process.argv.includes("--debug");
     try {
-      const { token, apiUrl } = await runOAuthLogin({ apiUrl: opts.apiUrl });
+      const { token, apiUrl } = await runDeviceAuth({ apiUrl: opts.apiUrl });
       const result = await runInstall({ token, apiUrl, debug });
       process.stdout.write(
         `boost auth login: token written to ${result.path}.\n` +

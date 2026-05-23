@@ -26,7 +26,7 @@ import { homedir, platform } from "node:os";
 import { dirname, join } from "node:path";
 import { applyEdits, modify, parse } from "jsonc-parser";
 
-import { runOAuthLogin } from "./oauth.ts";
+import { runDeviceAuth } from "./device-auth.ts";
 
 const MARKETPLACE_KEY = "boost";
 const PLUGIN_KEY = "plouto@boost";
@@ -56,18 +56,19 @@ export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
   const apiUrl = (opts.apiUrl ?? "https://team.plouto.ai").replace(/\/+$/, "");
 
   let token = opts.token;
+  let resolvedApiUrl = apiUrl;
   if (!token) {
     if (opts.noAuth) {
       throw new Error(
         "PLOUTO_TOKEN required. Pass --token <plto_…>, or drop --no-auth to " +
-        "run the OAuth login flow.",
+        "run the device-code OAuth flow.",
       );
     }
-    // Browser-based OAuth: opens a tab, completes login on Plouto,
-    // captures the redirected token on a localhost port. Same pattern
-    // gh / gcloud / fly use.
-    const result = await runOAuthLogin({ apiUrl });
+    // Device-code (RFC 8628, gh / aws / stripe style) — works over
+    // SSH, no localhost coupling, clean user-facing URL.
+    const result = await runDeviceAuth({ apiUrl });
     token = result.token;
+    resolvedApiUrl = result.apiUrl;
   }
 
   const path = opts.managed ? managedSettingsPath() : userSettingsPath();
@@ -102,11 +103,11 @@ export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
     },
     {
       path: ["env", "PLOUTO_TOKEN"],
-      value: opts.token,
+      value: token,
     },
     {
       path: ["env", "PLOUTO_API_URL"],
-      value: apiUrl,
+      value: resolvedApiUrl,
     },
   ];
 

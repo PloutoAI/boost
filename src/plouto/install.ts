@@ -50,6 +50,9 @@ export interface InstallResult {
   path: string;
   created: boolean;
   managed: boolean;
+  /** Filled in when install ran the OAuth flow. Undefined when a
+   *  pre-existing token was passed via ``--token``. */
+  identity?: { email?: string; name?: string; workspace?: string };
 }
 
 export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
@@ -57,6 +60,7 @@ export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
 
   let token = opts.token;
   let resolvedApiUrl = apiUrl;
+  let identity: InstallResult["identity"] | undefined;
   if (!token) {
     if (opts.noAuth) {
       throw new Error(
@@ -69,6 +73,11 @@ export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
     const result = await runDeviceAuth({ apiUrl });
     token = result.token;
     resolvedApiUrl = result.apiUrl;
+    identity = {
+      email: result.userEmail,
+      name: result.userName,
+      workspace: result.workspaceName,
+    };
   }
 
   const path = opts.managed ? managedSettingsPath() : userSettingsPath();
@@ -124,7 +133,7 @@ export async function runInstall(opts: InstallOptions): Promise<InstallResult> {
 
   writeFileSync(path, next, { encoding: "utf8", mode: 0o600 });
 
-  return { path, created: !existed, managed: !!opts.managed };
+  return { path, created: !existed, managed: !!opts.managed, identity };
 }
 
 // ---------------------------------------------------------------------------

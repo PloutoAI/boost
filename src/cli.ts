@@ -26,6 +26,15 @@ import { revertCommand } from "./revert-cli.ts";
 import { runPloutoSync } from "./plouto/sync.ts";
 import { runInstall } from "./plouto/install.ts";
 import { runDeviceAuth } from "./plouto/device-auth.ts";
+
+// Tiny ANSI helpers — used by the OAuth success/failure print so the
+// output reads like gh / stripe / vercel. No external dependency
+// needed; ``chalk`` is already in the package but these are local.
+const _ANSI = process.stdout.isTTY && !process.env.NO_COLOR;
+const bold  = (s: string) => _ANSI ? `\x1b[1m${s}\x1b[0m` : s;
+const dim   = (s: string) => _ANSI ? `\x1b[2m${s}\x1b[0m` : s;
+const green = (s: string) => _ANSI ? `\x1b[32m${s}\x1b[0m` : s;
+const red   = (s: string) => _ANSI ? `\x1b[31m${s}\x1b[0m` : s;
 import { buildYieldReport, renderYieldReport } from "./output/yield.ts";
 import { buildReskillReport, createSkillDraft, renderReskillReport } from "./reskill.ts";
 import { summarize, modelUsageLastNDays } from "./summary.ts";
@@ -137,14 +146,22 @@ program
       });
       const verb = result.created ? "created" : "updated";
       const scope = result.managed ? "managed (org-wide)" : "per-user";
-      process.stdout.write(
-        `boost install: ${verb} ${result.path} (${scope}).\n` +
-        `Restart Claude Code; SessionStart will sync policies from Plouto on the next session.\n`,
-      );
+
+      // gh-style success block: identity line first (if the user ran
+      // OAuth), then the file-write confirmation, then the next step.
+      if (result.identity?.name || result.identity?.email) {
+        const who = result.identity.name || result.identity.email;
+        const ws = result.identity.workspace
+          ? `  ${dim("·")}  workspace ${bold(result.identity.workspace)}`
+          : "";
+        process.stdout.write(`${green("✓")} Logged in as ${bold(who!)}${ws}\n`);
+      }
+      process.stdout.write(`${green("✓")} ${verb} ${result.path}  ${dim("(" + scope + ")")}\n`);
+      process.stdout.write(`${dim("→")} Restart Claude Code; SessionStart will sync policies on the next session.\n`);
     } catch (err) {
       const msg = (err as Error).message;
       if (debug) console.error(err);
-      else console.error(`boost install: ${msg}`);
+      else console.error(`${red("✗")} boost install: ${msg}`);
       process.exit(2);
     }
   });
@@ -158,16 +175,25 @@ program
   .action(async (opts: { apiUrl: string }) => {
     const debug = process.argv.includes("--debug");
     try {
-      const { token, apiUrl } = await runDeviceAuth({ apiUrl: opts.apiUrl });
-      const result = await runInstall({ token, apiUrl, debug });
-      process.stdout.write(
-        `boost auth login: token written to ${result.path}.\n` +
-        `Restart Claude Code; the new token applies on the next session.\n`,
-      );
+      const auth = await runDeviceAuth({ apiUrl: opts.apiUrl });
+      const result = await runInstall({
+        token: auth.token,
+        apiUrl: auth.apiUrl,
+        debug,
+      });
+      if (auth.userName || auth.userEmail) {
+        const who = auth.userName || auth.userEmail;
+        const ws = auth.workspaceName
+          ? `  ${dim("·")}  workspace ${bold(auth.workspaceName)}`
+          : "";
+        process.stdout.write(`${green("✓")} Logged in as ${bold(who!)}${ws}\n`);
+      }
+      process.stdout.write(`${green("✓")} Token written to ${result.path}\n`);
+      process.stdout.write(`${dim("→")} Restart Claude Code; the new token applies on the next session.\n`);
     } catch (err) {
       const msg = (err as Error).message;
       if (debug) console.error(err);
-      else console.error(`boost auth login: ${msg}`);
+      else console.error(`${red("✗")} boost auth login: ${msg}`);
       process.exit(2);
     }
   });

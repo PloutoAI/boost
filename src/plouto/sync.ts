@@ -21,6 +21,7 @@ import { applyAction } from "./enforce.ts";
 import { PloutoClient, type AppliedAction } from "./client.ts";
 import { loadPloutoConfig } from "./config.ts";
 import { LoopDatabase } from "../db.ts";
+import { runIngestSync, type IngestSyncResult } from "./ingest.ts";
 
 interface HookInput {
   session_id?: string;
@@ -48,20 +49,10 @@ export async function runPloutoSync(opts: SyncOptions = {}): Promise<void> {
   }
 
   const client = new PloutoClient(cfg);
-  const response = await client.fetchStrategies();
-  if (response === null) {
-    if (opts.json) {
-      process.stdout.write(JSON.stringify({ status: "skipped", reason: "fetch_failed" }) + "\n");
-    } else if (opts.debug) {
-      process.stderr.write("plouto-sync: failed to fetch strategies\n");
-    }
-    return;
-  }
 
-  // Enforcement writes route through the reversible apply substrate, which
-  // needs boost's local DB (operations log + backups). Open it best-effort:
-  // if it's unavailable we skip this sweep rather than break Claude Code
-  // startup — next session retries.
+  // boost's local DB backs both halves: the ingest cursor AND the
+  // enforcement apply substrate. Open it best-effort — if unavailable,
+  // skip this sweep rather than break Claude Code startup; next retries.
   let loopDb: LoopDatabase;
   try {
     loopDb = LoopDatabase.open();
@@ -74,35 +65,50 @@ export async function runPloutoSync(opts: SyncOptions = {}): Promise<void> {
     return;
   }
 
+  let ingest: IngestSyncResult | null = null;
   const receipts: AppliedAction[] = [];
   try {
-    // Older Plouto deploys don't return an ``actions`` array — they only
-    // shipped the legacy ``policy_model`` fields. Treat missing as empty
-    // so the plugin tolerates straddling a deploy.
-    for (const action of response.actions ?? []) {
-      const receipt = await applyAction(action, { cwd, db: loopDb.db });
-      if (sessionId) receipt.session_id = sessionId;
-      receipts.push(receipt);
+    // (1) Push session metadata up. Independent of enforcement — runs
+    // even if the strategies fetch fails. Best-effort; never throws.
+    try {
+      ingest = await runIngestSync(loopDb.db, client, {
+        warn: opts.debug ? (m) => process.stderr.write(`plouto-sync: ${m}\n`) : undefined,
+      });
+    } catch (err) {
+      if (opts.debug) process.stderr.write(`plouto-sync: ingest error: ${(err as Error).message}\n`);
+    }
+
+    // (2) Pull strategies + enforce. A missing/failed fetch just skips
+    // enforcement; the ingest above still happened. Older Plouto deploys
+    // omit ``actions`` (legacy policy_model only) — treat as empty.
+    const response = await client.fetchStrategies();
+    if (response !== null) {
+      for (const action of response.actions ?? []) {
+        const receipt = await applyAction(action, { cwd, db: loopDb.db });
+        if (sessionId) receipt.session_id = sessionId;
+        receipts.push(receipt);
+      }
     }
   } finally {
     loopDb.close();
   }
 
-  await client.reportApplied(receipts, sessionId);
+  if (receipts.length > 0) await client.reportApplied(receipts, sessionId);
 
-  // Summary line — to stderr so it shows up in hook traces but doesn't
-  // get fed to the model.
+  // Summary → stderr (shows in hook traces, not fed to the model).
   const counts = receipts.reduce<Record<string, number>>((acc, r) => {
     acc[r.status] = (acc[r.status] ?? 0) + 1;
     return acc;
   }, {});
-  const summary = Object.entries(counts)
-    .map(([k, v]) => `${v} ${k}`)
-    .join(", ") || "no actions";
+  const enforceSummary =
+    Object.entries(counts).map(([k, v]) => `${v} ${k}`).join(", ") || "no actions";
+  const ingestSummary = ingest
+    ? `ingest ${ingest.turnsUploaded} turns / ${ingest.filesUploaded} files${ingest.hitRunCap ? " (capped, more next session)" : ""}`
+    : "ingest skipped";
   if (opts.json) {
-    process.stdout.write(JSON.stringify({ status: "ok", counts, receipts }) + "\n");
+    process.stdout.write(JSON.stringify({ status: "ok", counts, receipts, ingest }) + "\n");
   } else {
-    process.stderr.write(`plouto-sync: ${summary}\n`);
+    process.stderr.write(`plouto-sync: ${enforceSummary}; ${ingestSummary}\n`);
   }
 }
 

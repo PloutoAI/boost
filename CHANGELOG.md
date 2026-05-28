@@ -8,6 +8,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.2.1] — 2026-05-28
 
+### Added
+
+- **Plugin-native session sync — no scripts.** When connected to Plouto, the
+  SessionStart hook now scans local Claude Code JSONL and pushes session +
+  turn **metadata** to `/api/ingest/sessions` (`src/plouto/ingest.ts`). This
+  replaces the standalone Python adapter for the normal-user path and fixes
+  the historical-backfill + multi-machine gaps — every engineer's machine
+  feeds the fleet view automatically.
+  - **Metadata-only by construction**: only numeric/id/enum/timestamp fields
+    are read (via the existing pure extractors); prompt/response/file content
+    is never reached for. The server's `extra="forbid"` schema is the backstop.
+  - **Per-file byte cursor** (`ingest_upload_state`) — incremental; append-only
+    JSONL means new turns = new bytes. Handles long-lived sessions correctly.
+  - **Idempotent**: the server upserts on `session_id`/`request_id`, so overlap
+    and retries are safe; the cursor only advances on a successful POST.
+  - **Bounded per run** (4k turns) so backfill self-completes over a few
+    sessions without risking the hook's timeout. No separate backfill path.
+  - **90-day window**; **git identity** attached so sessions attribute to the
+    right engineer, not the workspace's first user.
+
 ### Changed
 
 - **All enforcement writes now route through the reversible apply

@@ -242,6 +242,27 @@ grows to push real skill payloads, MCP config, and CLAUDE.md, each new kind
 adds a `Fix` mapping and inherits C7.1 validation + this revert trail for
 free — it cannot regress to a direct write.
 
+### C7.4 Outbound session-metadata egress (the ingest push)
+
+When connected, the SessionStart hook scans `~/.claude/projects/**/*.jsonl`
+and POSTs session + turn **metadata** to `/api/ingest/sessions`
+(`src/plouto/ingest.ts`). **This is the point where connected boost stops
+being "offline" — say so loudly:** connected → session *metadata* leaves
+the machine; content never does.
+
+- **Metadata-only by construction.** The lean wire subset reads only
+  numeric / id / enum / timestamp fields, through the same pure extractors
+  the local detectors use (`jsonl-payload.ts`). Prompt text, response text,
+  thinking blocks, tool I/O, and file contents are never read. The server's
+  Pydantic `extra="forbid"` schema (`plouto/schemas/ingest.py`) is the
+  second line of defense — an unknown key 422s before it touches the DB.
+- **Cursor + idempotency.** Per-file byte offset (`ingest_upload_state`),
+  advanced only on a successful POST; the server upserts on
+  `session_id`/`request_id`, so a killed hook or retry never double-counts
+  and never loses data.
+- **Bounded.** ≤4k turns per run, 8s per POST, 90-day window — a slow or
+  killed hook just resumes next session.
+
 ### C7.3 Token at rest
 
 `PLOUTO_TOKEN` lives in `~/.claude/settings.json:env` or

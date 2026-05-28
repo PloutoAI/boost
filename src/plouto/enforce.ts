@@ -1,19 +1,14 @@
 /**
  * Apply one StrategyAction from Plouto to the engineer's local setup.
  *
- * Two of the three enforced operations route through boost's reversible
- * apply substrate (`src/apply/`), so a bad policy push is undoable via
+ * All three enforced operations route through boost's reversible apply
+ * substrate (`src/apply/`), so a bad policy push is undoable via
  * `boost revert` and inherits the same backup + path-safety + symlink
  * guarantees as a local fix:
  *
- *   kind=skill, op=remove     → archive-directory  (reversible; was rm -rf)
+ *   kind=skill, op=install    → modify-file        (create-or-modify; revert deletes/restores)
+ *   kind=skill, op=remove     → archive-directory  (reversible; replaced rm -rf)
  *   kind=model, op=recommend  → modify-settings-key (reversible)
- *
- * kind=skill, op=install still writes directly: it only ever creates a
- * non-destructive placeholder SKILL.md, and the substrate's `modify-file`
- * primitive can't yet *create* a new file with delete-on-revert. Tracked
- * in threat-model.md C7.2 — once modify-file gains create-or-modify +
- * delete-on-revert, install joins the substrate too.
  *
  * mcp / claude_md / prompt are not enforced yet (status="skipped").
  *
@@ -21,12 +16,12 @@
  * never re-thrown — so one bad action doesn't stop the sweep.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import type { Database as BunDatabase } from "bun:sqlite";
 
 import { applyFix } from "../apply/apply.ts";
-import { archivedSkillsDir, assertWithinAllowedRoots, claudeHome } from "../paths.ts";
+import { archivedSkillsDir, claudeHome } from "../paths.ts";
 import type { Fix, Operation } from "../types.ts";
 import type { AppliedAction, StrategyAction } from "./client.ts";
 
@@ -100,8 +95,10 @@ export async function applyAction(
 
   try {
     if (action.kind === "skill" && action.op === "install") {
-      installSkill(action.target, action.source, action.rationale);
-      return _receipt(action, "applied");
+      const op = await installSkill(action.target, action.source, action.rationale, ctx.db, strategyIdFor(action));
+      const r = _receipt(action, "applied");
+      if (op) r.operation_id = op.operationId;
+      return r;
     }
     if (action.kind === "skill" && action.op === "remove") {
       const op = await removeSkill(action.target, ctx.db, strategyIdFor(action));
@@ -128,30 +125,35 @@ export async function applyAction(
 // ---------------------------------------------------------------------------
 
 /**
- * Install a placeholder skill. Direct write (not yet through the substrate
- * — see file header). Non-destructive: never overwrites a hand-edited skill,
- * only ever writes a placeholder.
+ * Install a placeholder skill — reversibly, via the substrate's
+ * create-or-modify `modify-file` primitive. Writes
+ * ~/.claude/skills/<name>/SKILL.md; revert deletes it (if freshly created)
+ * or restores the prior bytes (if it overwrote an earlier placeholder).
+ *
+ * Non-destructive guard: if a real, hand-edited SKILL.md already exists at
+ * the target (one boost didn't write), leave it alone and return null —
+ * the caller reports "applied" because the skill is effectively present.
+ * Returns the Operation when a write happened.
  */
-function installSkill(target: string, source: string | null, rationale: string): void {
+async function installSkill(
+  target: string,
+  source: string | null,
+  rationale: string,
+  db: BunDatabase,
+  strategyId: string,
+): Promise<Operation | null> {
   const name = assertSafeSegment(target, "skill");
-  const dir = join(claudeHome(), "skills", name);
-  // Defense-in-depth: confirm the resolved dir is inside the config root.
-  assertWithinAllowedRoots(dir, [claudeHome()]);
-  mkdirSync(dir, { recursive: true });
-  const skillMd = join(dir, "SKILL.md");
+  const skillMd = join(claudeHome(), "skills", name, "SKILL.md");
   if (existsSync(skillMd)) {
     const existing = readFileSync(skillMd, "utf8");
-    if (!existing.includes(PLACEHOLDER_MARKER)) {
-      // Real, hand-edited skill — leave it alone. The skill is effectively
-      // present on the engineer's machine, just not via us; report applied.
-      return;
-    }
+    if (!existing.includes(PLACEHOLDER_MARKER)) return null; // real skill — untouched
   }
   const body =
     `---\nname: ${name}\ndescription: Rolled out by Plouto. ${rationale || ""}\n---\n\n` +
     SKILL_PLACEHOLDER_NOTE +
     (source ? `\n\n<!-- source: ${source} -->\n` : "\n");
-  writeFileSync(skillMd, body, "utf8");
+  const fix: Fix = { kind: "modify-file", payload: { filePath: skillMd, newContent: body } };
+  return applyFix(fix, { db, strategyId, strategyVersion: STRATEGY_VERSION, predictedSavings: null });
 }
 
 /**

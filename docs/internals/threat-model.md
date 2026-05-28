@@ -218,30 +218,29 @@ re-checked with `assertWithinAllowedRoots([claudeHome()])` as
 defense-in-depth. Model-recommend validates the model id and refuses to
 write outside `$HOME`. **Tests:** `tests/plouto/enforce.test.ts`.
 
-### C7.2 Local revert trail for enforced changes (mostly closed)
+### C7.2 Local revert trail for enforced changes (closed)
 
-Enforcement writes now route through the `apply/` substrate for the two
-operations that map onto it, so they get SHA-256 backup + a recorded
-operation + `boost revert`:
+All three enforced operations route through the `apply/` substrate, so
+each gets a SHA-256-verified backup, a recorded operation, and
+`boost revert`. Receipts carry the `operation_id` back to Plouto.
 
-- `skill remove` → `archive-directory` — **reversible** (replaces the old
-  `rm -rf`, which destroyed data unrecoverably). The receipt carries the
-  `operation_id` back to Plouto.
+- `skill install` → `modify-file` (create-or-modify) — **reversible**.
+  A freshly-created SKILL.md is deleted on revert; an overwritten earlier
+  placeholder is restored. Delete-on-revert is guarded by the recorded
+  `afterHash`: if the user has edited the file since boost wrote it, revert
+  refuses rather than clobber their work. Still never overwrites a
+  hand-edited real skill in the first place (placeholder-marker check).
+- `skill remove` → `archive-directory` — **reversible** (replaced the old
+  `rm -rf`; the dir is tarred into `~/.boost/` and the exact archive path
+  is persisted so revert removes precisely it, no hash-scan).
 - `model recommend` → `modify-settings-key` — **reversible** (records the
   prior value; revert restores or removes it).
 
-**Remaining gap:** `skill install` still writes directly. The substrate's
-`modify-file` primitive modifies *existing* files; creating a new file
-with delete-on-revert is unbuilt. Install is non-destructive (it only ever
-writes a placeholder SKILL.md and never overwrites a hand-edited skill), so
-the gap is contained — but it is a gap. Closing it means teaching
-`modify-file` create-or-modify semantics and `restoreFile` an
-afterHash-guarded delete-on-revert.
-
-As enforcement grows to push real skill payloads, MCP config, and CLAUDE.md,
-each new kind must land with BOTH the C7.1 input validation AND a C7.2
-revert trail — and the richer kinds (which overwrite real content) cannot
-ship on a direct write the way the install placeholder does.
+There is now **one write path** for both local fixes and remote
+enforcement: produce a `Fix`, run it through `applyFix`. As enforcement
+grows to push real skill payloads, MCP config, and CLAUDE.md, each new kind
+adds a `Fix` mapping and inherits C7.1 validation + this revert trail for
+free — it cannot regress to a direct write.
 
 ### C7.3 Token at rest
 

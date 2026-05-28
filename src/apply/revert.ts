@@ -20,7 +20,7 @@ import {
   hashDirectoryShallow,
   restoreFromBackup,
 } from "./backup.ts";
-import { archivedSkillsDir } from "../paths.ts";
+import { archivedSkillsDir, boostHome } from "../paths.ts";
 
 /** Look up an operation row and revert it. */
 export async function revertOperation(db: BunDatabase, operationId: string): Promise<void> {
@@ -71,12 +71,14 @@ export async function revertOperation(db: BunDatabase, operationId: string): Pro
       throw new Error(`post-restore directory shallow-hash mismatch for ${backupRef.path}.`);
     }
     if (backupRef.kind !== "directory") throw new Error("revert: outcome/ref kind mismatch");
-    // Clean up the archive copy. The "moved-to" path is recorded in the
-    // operation's `afterHash`-context indirectly: reconstruct via the
-    // ArchiveDirectory fix shape — we don't store it explicitly today, so
-    // walk `~/.boost/archived-skills/<original-basename>-*` and remove any
-    // dir whose shallow-hash matches our recorded after_hash.
-    pruneArchivedCopies(backupRef.originalPath, row.after_hash);
+    // Clean up the archive copy. Prefer the exact path recorded at apply
+    // time; fall back to the legacy hash-scan for operations recorded
+    // before `archivedToPath` was persisted.
+    if (backupRef.archivedToPath) {
+      removeArchivedCopy(backupRef.archivedToPath);
+    } else {
+      pruneArchivedCopies(backupRef.originalPath, row.after_hash);
+    }
   }
 
   db.prepare(`UPDATE operations SET reverted_at_iso = ? WHERE operation_id = ?`).run(
@@ -114,7 +116,23 @@ function deepEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Find archived copies whose shallow hash matches and remove them. Limits
+ * Remove the exact archived copy recorded at apply time. Guarded: refuses
+ * to delete anything outside `~/.boost/`. Best-effort.
+ */
+function removeArchivedCopy(archivedPath: string): void {
+  const abs = path.resolve(archivedPath);
+  const root = path.resolve(boostHome());
+  if (abs !== root && !abs.startsWith(root + path.sep)) return; // never outside ~/.boost
+  try {
+    fs.rmSync(abs, { recursive: true, force: true });
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Legacy fallback for operations recorded before `archivedToPath` existed:
+ * find archived copies whose shallow hash matches and remove them. Limits
  * search to `~/.boost/archived-skills/<base>-*`. Best-effort.
  */
 function pruneArchivedCopies(originalPath: string, afterHash: string): void {

@@ -15,6 +15,7 @@ import { assertNever, type Fix, type Operation } from "../types.ts";
 import {
   atomicWriteFile,
   backupBeforeWrite,
+  EMPTY_FILE_SHA256,
   getJsonPath,
   hashDirectoryShallow,
   hashFile,
@@ -65,6 +66,26 @@ async function applyModifyFile(filePath: string, newContent: string, ctx: ApplyC
   refuseSymlinkAtInput(filePath);
   const canon = assertWithinAllowedRoots(filePath, allowedWriteRoots());
   const safeRoot = pickSafeRoot(canon);
+
+  // Create-or-modify. The file may not exist yet (e.g. a freshly-rolled-out
+  // skill's SKILL.md). Mirrors applyModifySettingsKey's exists/missing split.
+  if (!fs.existsSync(canon)) {
+    fs.mkdirSync(path.dirname(canon), { recursive: true });
+    atomicWriteFile(canon, newContent, 0o644, safeRoot);
+    const afterHash = hashFile(canon);
+    // No backup file — revert deletes the created file (guarded by afterHash).
+    const createdRef: Operation["backupRef"] = {
+      kind: "file",
+      path: "",
+      backupHash: "",
+      originalPath: canon,
+      mode: 0o644,
+      created: true,
+      afterHash,
+    };
+    return persistOperation(ctx, EMPTY_FILE_SHA256, afterHash, createdRef);
+  }
+
   const lst = fs.lstatSync(canon);
   if (lst.isSymbolicLink()) throw new Error(`refusing to modify symlink: ${canon}`);
   const beforeHash = hashFile(canon);
@@ -103,7 +124,7 @@ async function applyModifySettingsKey(
     const lst = fs.lstatSync(canon);
     if (lst.isSymbolicLink()) throw new Error(`refusing to modify symlink: ${canon}`);
   }
-  const beforeHash = exists ? hashFile(canon) : EMPTY_HASH;
+  const beforeHash = exists ? hashFile(canon) : EMPTY_FILE_SHA256;
   if (exists) raceCheck(beforeHash, ctx.observed);
 
   let current: Record<string, unknown> = {};
@@ -167,7 +188,12 @@ async function applyArchiveDirectory(
     }
   }
   const afterHash = hashDirectoryShallow(toCanon);
-  return persistOperation(ctx, beforeHash, afterHash, backup.ref);
+  // Record where we moved it so revert can remove that exact copy instead
+  // of reverse-engineering it from a content hash.
+  const dirRef = backup.ref;
+  if (dirRef.kind !== "directory") throw new Error("archive backup returned non-directory ref");
+  const refWithDest: Operation["backupRef"] = { ...dirRef, archivedToPath: toCanon };
+  return persistOperation(ctx, beforeHash, afterHash, refWithDest);
 }
 
 /** Refuse if `inputPath` itself is a symlink (lstat the leaf only). */
@@ -240,5 +266,3 @@ function copyDirRecursive(src: string, dest: string): void {
     else if (entry.isFile()) fs.copyFileSync(s, d);
   }
 }
-
-const EMPTY_HASH = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";

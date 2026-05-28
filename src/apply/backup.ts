@@ -53,6 +53,11 @@ export type BackupResult = {
 
 const FLAG_NOFOLLOW = (fs.constants as { O_NOFOLLOW?: number }).O_NOFOLLOW ?? 0;
 
+/** sha256 of zero bytes — the "before" hash of a created file, and the
+ *  "after" hash once revert deletes it. */
+export const EMPTY_FILE_SHA256 =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
 /** Capture pre-state and write a backup. Caller modifies the original *after*. */
 export function backupBeforeWrite(spec: BackupSpec): BackupResult {
   switch (spec.kind) {
@@ -229,6 +234,9 @@ export function refuseSymlinkInAncestors(target: string, safeRoot: string): void
 
 /** Hash the on-disk backup file and compare to the recorded `backupHash`. */
 function verifyBackupIntegrity(ref: BackupRef): void {
+  // A "created" file backup has no backup file on disk — its revert
+  // deletes the created file rather than restoring bytes. Nothing to verify.
+  if (ref.kind === "file" && ref.created) return;
   if (!fs.existsSync(ref.path)) {
     throw new Error(`backup file is missing at ${ref.path}; cannot revert.`);
   }
@@ -270,12 +278,31 @@ function backupFile(spec: FileBackupSpec): BackupResult {
 }
 
 function restoreFile(ref: Extract<BackupRef, { kind: "file" }>): RestoreOutcome {
+  const target = ref.originalPath;
+  refuseSymlinkAtLeaf(target);
+
+  // "created" backup → revert means delete the file boost created.
+  if (ref.created) {
+    if (fs.existsSync(target)) {
+      // pickSafeRoot throws unless `target` is inside an allowed root —
+      // acts as the path-safety guard before we unlink.
+      pickSafeRoot(path.resolve(target));
+      // Guard: only delete if the file is still exactly what we wrote, so a
+      // later hand-edit is never clobbered by reverting the create.
+      if (ref.afterHash !== undefined && hashFile(target) !== ref.afterHash) {
+        throw new Error(
+          `refusing to delete ${target} on revert: it changed since boost created it.`,
+        );
+      }
+      fs.unlinkSync(target);
+    }
+    return { kind: "file", postHash: EMPTY_FILE_SHA256 };
+  }
+
   const data = fs.readFileSync(ref.path);
   // Mirror the apply path: lstat the leaf, then walk every ancestor from
   // the smallest allowed root down. Closes the asymmetry where the forward
   // path passed safeRoot but the reverse did not.
-  const target = ref.originalPath;
-  refuseSymlinkAtLeaf(target);
   const safeRoot = pickSafeRoot(path.resolve(target));
   atomicWriteFile(target, data, ref.mode, safeRoot);
   return { kind: "file", postHash: hashFile(target) };

@@ -10,20 +10,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- **Enforcement writes now route through the reversible apply substrate.**
-  `enforce.ts` was a parallel reimplementation of the same three operations
+- **All enforcement writes now route through the reversible apply
+  substrate — one write path for local fixes and remote enforcement.**
+  `enforce.ts` was a parallel reimplementation of the three operations
   `src/apply/` already provides (`modify-file` / `modify-settings-key` /
-  `archive-directory`) — but with raw `fs` calls, no backup, and no revert
-  trail. Collapsed the two that map cleanly onto existing substrate
-  primitives:
-  - `skill remove` → `archive-directory`: **reversible**, replacing the
-    destructive `rm -rf`. A bad removal is now undoable with `boost revert`.
-  - `model recommend` → `modify-settings-key`: **reversible** (records the
-    prior `model` value).
-  Receipts carry the resulting `operation_id` back to Plouto. `skill install`
-  still writes directly (it only creates a non-destructive placeholder and
-  the substrate can't yet *create* a file with delete-on-revert) — tracked
-  in threat-model.md C7.2.
+  `archive-directory`) — raw `fs` calls, no backup, no revert trail. Each
+  enforced action now builds a `Fix` and runs it through `applyFix`, so it
+  gets a SHA-256 backup, an operation record, and `boost revert`. Receipts
+  carry the `operation_id` back to Plouto.
+  - `skill install` → `modify-file`: reversible (revert deletes a created
+    SKILL.md or restores an overwritten placeholder).
+  - `skill remove` → `archive-directory`: reversible, replacing the
+    destructive `rm -rf`.
+  - `model recommend` → `modify-settings-key`: reversible.
+
+### Fixed (substrate)
+
+- `applyFix`'s `modify-file` now **creates** files, not just modifies them
+  (mirrors `modify-settings-key`'s existing missing-file handling). Revert
+  of a created file deletes it, guarded by an `afterHash` check so a later
+  hand-edit is never clobbered. Unblocks routing skill-install through the
+  substrate; also useful for any future detector that writes a new file.
+- `archive-directory` now persists the archived-to path (`archivedToPath`)
+  in the operation, so revert removes that exact copy instead of
+  reverse-engineering it by content-hash-scanning `~/.boost/archived-skills/`
+  (fragile under identical-content archives). Legacy operations without the
+  field fall back to the hash-scan.
 
 ### Security
 

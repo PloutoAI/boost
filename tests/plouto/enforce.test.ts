@@ -80,9 +80,48 @@ test("rejects absolute / dot / separator / control-char targets", async () => {
 test("install writes a placeholder SKILL.md inside the skills dir", async () => {
   const r = await applyAction(action({ op: "install", target: "mcp-builder" }), ctx());
   expect(r.status).toBe("applied");
+  expect(r.operation_id).toBeTruthy(); // now reversible — went through the substrate
   const md = path.join(h.claudeHome, "skills", "mcp-builder", "SKILL.md");
   expect(fs.existsSync(md)).toBe(true);
   expect(fs.readFileSync(md, "utf8")).toContain("SessionStart hook");
+});
+
+test("install creates reversibly; revert deletes the created SKILL.md", async () => {
+  const md = path.join(h.claudeHome, "skills", "fresh", "SKILL.md");
+  const r = await applyAction(action({ op: "install", target: "fresh" }), ctx());
+  expect(r.status).toBe("applied");
+  expect(fs.existsSync(md)).toBe(true);
+
+  await revertOperation(loop.db, r.operation_id!);
+  expect(fs.existsSync(md)).toBe(false); // the create was undone
+});
+
+test("install over a stale placeholder; revert restores the prior placeholder", async () => {
+  // First install writes placeholder v1.
+  const first = await applyAction(action({ op: "install", target: "evolving", rationale: "v1" }), ctx());
+  const md = path.join(h.claudeHome, "skills", "evolving", "SKILL.md");
+  const v1 = fs.readFileSync(md, "utf8");
+  expect(v1).toContain("v1");
+
+  // Second install overwrites with v2 (still a boost placeholder, so allowed).
+  const second = await applyAction(action({ op: "install", target: "evolving", rationale: "v2" }), ctx());
+  expect(second.operation_id).toBeTruthy();
+  expect(fs.readFileSync(md, "utf8")).toContain("v2");
+
+  // Reverting the second op restores v1.
+  await revertOperation(loop.db, second.operation_id!);
+  expect(fs.readFileSync(md, "utf8")).toBe(v1);
+  void first;
+});
+
+test("revert refuses to delete a created file the user edited since", async () => {
+  const md = path.join(h.claudeHome, "skills", "touched", "SKILL.md");
+  const r = await applyAction(action({ op: "install", target: "touched" }), ctx());
+  // User turns the placeholder into a real, hand-edited skill.
+  fs.writeFileSync(md, "---\nname: touched\n---\nI made this real", "utf8");
+
+  await expect(revertOperation(loop.db, r.operation_id!)).rejects.toThrow(/changed since boost created it/);
+  expect(fs.existsSync(md)).toBe(true); // user's work preserved
 });
 
 test("install leaves a hand-edited real skill untouched", async () => {

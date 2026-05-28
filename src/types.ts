@@ -117,14 +117,24 @@ export type Operation = {
 export type BackupRef =
   | {
       kind: "file";
-      /** Absolute path under `~/.boost/backups/`. */
+      /** Absolute path under `~/.boost/backups/`. Empty when `created`. */
       path: string;
-      /** sha256 of the bytes at `path`, computed at backup time. */
+      /** sha256 of the bytes at `path`, computed at backup time. Empty when `created`. */
       backupHash: string;
       /** Original file path the backup was taken from. */
       originalPath: string;
       /** POSIX mode bits to restore. */
       mode: number;
+      /**
+       * True when the target did NOT exist before apply. There is no
+       * backup file to restore — revert *deletes* the created file
+       * instead. `afterHash` guards that delete: revert refuses if the
+       * file changed since boost wrote it, so a later hand-edit is never
+       * clobbered.
+       */
+      created?: boolean;
+      /** sha256 of the content boost wrote. Set when `created`. */
+      afterHash?: string;
     }
   | {
       kind: "settings-key";
@@ -139,6 +149,13 @@ export type BackupRef =
       path: string;
       backupHash: string;
       originalPath: string;
+      /**
+       * Where the directory was archived to (always under `~/.boost/`).
+       * Lets revert remove that exact copy instead of hash-scanning the
+       * archive dir. Absent on operations recorded before this field
+       * existed — revert falls back to the hash-scan for those.
+       */
+      archivedToPath?: string;
     };
 
 /** Compile-time exhaustiveness helper for switch/case on unions. */

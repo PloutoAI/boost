@@ -20,9 +20,63 @@
 
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, isAbsolute, join, resolve, sep } from "node:path";
 
+import { assertWithinAllowedRoots, claudeHome } from "../paths.ts";
 import type { AppliedAction, StrategyAction } from "./client.ts";
+
+/**
+ * Validate that ``name`` is a single safe path segment.
+ *
+ * ``target`` arrives from the Plouto server, which the threat model
+ * (C2) treats as untrusted input. A target like ``../../../tmp/x``
+ * joined onto the skills dir escapes ~/.claude: ``removeSkill`` would
+ * then ``rm -rf`` an arbitrary path and ``installSkill`` would write
+ * outside the config tree — turning a compromised or malicious
+ * workspace policy into arbitrary file delete/write on every
+ * engineer's machine. A skill name (and every per-kind directory
+ * target) is one path component by definition, so anything else is
+ * refused. See threat-model.md C3.2 + the cloud-sync section.
+ */
+function hasControlChar(s: string): boolean {
+  for (let i = 0; i < s.length; i++) {
+    if (s.charCodeAt(i) < 0x20) return true;
+  }
+  return false;
+}
+
+function assertSafeSegment(name: string, kind: string): string {
+  if (typeof name !== "string" || name.length === 0 || name.length > 128) {
+    throw new Error(`unsafe ${kind} target: empty or over 128 chars`);
+  }
+  if (
+    name.includes("/") ||
+    name.includes("\\") ||
+    hasControlChar(name) ||
+    name === "." ||
+    name === ".." ||
+    isAbsolute(name) ||
+    basename(name) !== name
+  ) {
+    throw new Error(
+      `unsafe ${kind} target: must be a single path segment, got ${JSON.stringify(name)}`,
+    );
+  }
+  return name;
+}
+
+/**
+ * Resolve ``~/.claude/skills/<target>`` after validating ``target`` is a
+ * single segment, then re-check the resolved path is inside the config
+ * root as defense-in-depth (catches a symlinked skills dir or any future
+ * loosening of the segment check). Uses ``claudeHome()`` so it honors
+ * ``CLAUDE_CONFIG_DIR`` the same way the rest of boost does.
+ */
+function skillDir(target: string): string {
+  const safe = assertSafeSegment(target, "skill");
+  const dir = join(claudeHome(), "skills", safe);
+  return assertWithinAllowedRoots(dir, [claudeHome()]);
+}
 
 const SKILL_PLACEHOLDER_NOTE = `\
 <!--
@@ -66,7 +120,7 @@ export function applyAction(
 // ---------------------------------------------------------------------------
 
 function installSkill(target: string, source: string | null, rationale: string): void {
-  const dir = join(homedir(), ".claude", "skills", target);
+  const dir = skillDir(target);
   mkdirSync(dir, { recursive: true });
   const skillMd = join(dir, "SKILL.md");
   // Don't stomp a real, hand-edited skill if the user already has one
@@ -89,18 +143,33 @@ function installSkill(target: string, source: string | null, rationale: string):
 }
 
 function removeSkill(target: string): void {
-  const dir = join(homedir(), ".claude", "skills", target);
+  const dir = skillDir(target);
   if (!existsSync(dir)) return;
   rmSync(dir, { recursive: true, force: true });
 }
 
 function recommendModel(target: string, cwd: string): void {
+  // ``target`` (the model id) is written as a JSON *value*, so
+  // JSON.stringify escapes it — not a path-injection vector. Still
+  // reject control chars / absurd lengths so a bad policy can't write
+  // garbage into the engineer's settings.
+  if (typeof target !== "string" || target.length === 0 || target.length > 128 || hasControlChar(target)) {
+    throw new Error(`unsafe model target: ${JSON.stringify(target)}`);
+  }
+  // ``cwd`` is the local hook payload (Claude Code's project dir), not
+  // server input — but guard anyway: only write inside the user's home
+  // tree, never to a project parked in a system location.
+  const projectDir = resolve(cwd);
+  const home = homedir();
+  if (projectDir !== home && !projectDir.startsWith(home + sep)) {
+    throw new Error(`refusing model recommendation outside home tree: ${projectDir}`);
+  }
   // Write to <cwd>/.claude/settings.local.json — project-scoped so the
   // recommendation only applies inside the workspace this hook fired
   // for. Merge with existing JSON (don't stomp).
-  const dir = join(cwd, ".claude");
+  const dir = join(projectDir, ".claude");
   mkdirSync(dir, { recursive: true });
-  const path = join(dir, "settings.local.json");
+  const path = assertWithinAllowedRoots(join(dir, "settings.local.json"), [projectDir]);
   let existing: Record<string, unknown> = {};
   if (existsSync(path)) {
     try {

@@ -8,6 +8,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.2.1] — 2026-05-28
 
+### Security
+
+- **Path-traversal hardening on the enforcement path.** `StrategyAction.target`
+  comes from the Plouto server, which the threat model treats as untrusted
+  input — but `enforce.ts` joined it straight onto `~/.claude/skills/<target>`
+  with no validation. A target like `../../../tmp/x` escaped the skills dir:
+  `removeSkill` would `rm -rf` an arbitrary path and `installSkill` would write
+  outside the config tree, turning a compromised or malicious workspace policy
+  into arbitrary file delete/write on every engineer's machine. Targets are now
+  validated as a single path segment (`assertSafeSegment`) and the resolved
+  path is re-checked against the config root (`assertWithinAllowedRoots`) as
+  defense-in-depth. Model-recommend writes validate the model id and refuse to
+  write outside the user's home tree. Regression tests in
+  `tests/plouto/enforce.test.ts`. See [threat-model.md §C7](docs/internals/threat-model.md).
+- `enforce.ts` now resolves the skills dir via `claudeHome()` so it honors
+  `CLAUDE_CONFIG_DIR` like the rest of boost (previously hardcoded
+  `~/.claude`, which also made it untestable).
+
 ### Removed
 
 - **Localhost-redirect OAuth flow (`src/plouto/oauth.ts`).** Dead since

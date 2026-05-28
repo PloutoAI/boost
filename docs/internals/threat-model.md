@@ -182,3 +182,60 @@ Any future feature that adds attack surface must update Part C before merging:
 - Multi-user features → expand Out of Scope to clarify what's defended in shared environments
 
 This isn't bureaucracy — it's the discipline that keeps boost trustworthy as it grows.
+
+## C7. Enforcement layer — the networked write path (0.2.x)
+
+0.2.0 added Plouto's enforcement tier: a SessionStart hook runs `boost
+plouto-sync`, which `GET`s `/api/plugin/strategies`, applies each action
+to the engineer's local config, and `POST`s receipts back. This is a
+**new trust boundary the original C1–C5 prose predates** — C5's "no
+network" guarantee holds for the local optimization path (Tier 1) but
+NOT for the enforcement path (Tier 2).
+
+### What the enforcement path trusts
+
+- **The bearer token + `apiUrl`** from `PLOUTO_TOKEN` / `~/.plouto/config.json`.
+- **TLS** to `team.plouto.ai` (or the configured `apiUrl`).
+
+### What it does NOT trust
+
+- **`StrategyAction` field contents from the server.** The server may be
+  compromised, MITM'd despite TLS, or driven by a malicious/curious
+  workspace admin (admins author strategies). Every field that becomes a
+  filesystem path or a file's contents is untrusted input.
+
+### C7.1 Path traversal via `target` (fixed)
+
+**Scenario:** a strategy returns `target = "../../../tmp/x"`. Joined onto
+`~/.claude/skills/<target>`, `removeSkill` would `rm -rf` an arbitrary
+path; `installSkill` would write outside the config tree — arbitrary
+file delete/write on every engineer's machine from one bad policy.
+
+**Mitigation:** `assertSafeSegment()` rejects any `target` that isn't a
+single path segment (no `/`, `\`, control chars, `.`/`..`, absolute
+paths, or anything where `basename(t) !== t`). The resolved directory is
+re-checked with `assertWithinAllowedRoots([claudeHome()])` as
+defense-in-depth. Model-recommend validates the model id and refuses to
+write outside `$HOME`. **Tests:** `tests/plouto/enforce.test.ts`.
+
+### C7.2 No local revert trail for enforced changes (known gap)
+
+The enforcement path writes with raw `fs` calls, **not** through the
+`apply/` substrate — so enforced skill installs / model recommendations
+have no SHA-256 backup and are **not** undoable via `boost revert`. A bad
+policy push can't be rolled back locally; the engineer's only recourse is
+the server retracting it. Tracked: route enforcement writes through the
+backup/revert pipeline so the networked path gets the same reversibility
+the local path has. Until then, enforced kinds are deliberately limited
+to ones with contained blast radius (placeholder SKILL.md, project-scoped
+`settings.local.json:model`). As enforcement grows to push real skill
+payloads, MCP config, and CLAUDE.md, each new kind must land with both
+the C7.1 input validation AND the C7.2 revert trail.
+
+### C7.3 Token at rest
+
+`PLOUTO_TOKEN` lives in `~/.claude/settings.json:env` or
+`~/.plouto/config.json`. Standard Unix perms apply; we don't add
+encryption-at-rest (consistent with C3.11). A token leak lets an attacker
+*read* the workspace's strategy list and *forge* apply-receipts — it does
+not grant write access to other engineers' machines.

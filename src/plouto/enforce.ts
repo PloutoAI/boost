@@ -1,43 +1,55 @@
 /**
  * Apply one StrategyAction from Plouto to the engineer's local setup.
  *
- * Phase 1 dispatch matrix:
+ * Two of the three enforced operations route through boost's reversible
+ * apply substrate (`src/apply/`), so a bad policy push is undoable via
+ * `boost revert` and inherits the same backup + path-safety + symlink
+ * guarantees as a local fix:
  *
- *   kind=skill,  op=install  → write ~/.claude/skills/<target>/SKILL.md placeholder
- *   kind=skill,  op=remove   → rm -rf ~/.claude/skills/<target>/
- *   kind=model,  op=recommend → write <cwd>/.claude/settings.local.json { "model": "<target>" }
- *   kind=mcp                 → not enforced yet (returns status="skipped" with note)
- *   kind=claude_md / prompt  → not enforced yet
- *   op=no-op                 → status="skipped"
+ *   kind=skill, op=remove     → archive-directory  (reversible; was rm -rf)
+ *   kind=model, op=recommend  → modify-settings-key (reversible)
  *
- * Every action returns an ``AppliedAction`` receipt the caller batches
- * up and POSTs to /api/plugin/strategies/applied.
+ * kind=skill, op=install still writes directly: it only ever creates a
+ * non-destructive placeholder SKILL.md, and the substrate's `modify-file`
+ * primitive can't yet *create* a new file with delete-on-revert. Tracked
+ * in threat-model.md C7.2 — once modify-file gains create-or-modify +
+ * delete-on-revert, install joins the substrate too.
  *
- * Failures are caught and converted into ``status="failed"`` receipts
- * with the error message — never re-thrown — so one bad action doesn't
- * stop subsequent actions in the same sweep from being tried.
+ * mcp / claude_md / prompt are not enforced yet (status="skipped").
+ *
+ * Failures are caught and converted into status="failed" receipts —
+ * never re-thrown — so one bad action doesn't stop the sweep.
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { basename, isAbsolute, join, resolve, sep } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, isAbsolute, join, resolve } from "node:path";
+import type { Database as BunDatabase } from "bun:sqlite";
 
-import { assertWithinAllowedRoots, claudeHome } from "../paths.ts";
+import { applyFix } from "../apply/apply.ts";
+import { archivedSkillsDir, assertWithinAllowedRoots, claudeHome } from "../paths.ts";
+import type { Fix, Operation } from "../types.ts";
 import type { AppliedAction, StrategyAction } from "./client.ts";
 
-/**
- * Validate that ``name`` is a single safe path segment.
- *
- * ``target`` arrives from the Plouto server, which the threat model
- * (C2) treats as untrusted input. A target like ``../../../tmp/x``
- * joined onto the skills dir escapes ~/.claude: ``removeSkill`` would
- * then ``rm -rf`` an arbitrary path and ``installSkill`` would write
- * outside the config tree — turning a compromised or malicious
- * workspace policy into arbitrary file delete/write on every
- * engineer's machine. A skill name (and every per-kind directory
- * target) is one path component by definition, so anything else is
- * refused. See threat-model.md C3.2 + the cloud-sync section.
- */
+/** Enforcement actions aren't versioned detectors — stamp a constant. */
+const STRATEGY_VERSION = 1;
+
+/** Marker that identifies a SKILL.md boost wrote (vs. a hand-edited one). */
+const PLACEHOLDER_MARKER = "Plouto boost plugin's SessionStart hook";
+
+const SKILL_PLACEHOLDER_NOTE = `\
+<!--
+This skill was installed by the Plouto boost plugin's SessionStart hook
+on behalf of a workspace strategy. Phase 1 of the enforcement layer
+writes only this placeholder so the directory exists and Claude Code
+sees the SKILL.md — the full skill payload pull from the source repo
+lands in Phase 2.
+-->`;
+
+export interface ApplyCtx {
+  cwd: string;
+  db: BunDatabase;
+}
+
 function hasControlChar(s: string): boolean {
   for (let i = 0; i < s.length; i++) {
     if (s.charCodeAt(i) < 0x20) return true;
@@ -45,6 +57,15 @@ function hasControlChar(s: string): boolean {
   return false;
 }
 
+/**
+ * Validate that ``name`` is a single safe path segment.
+ *
+ * ``target`` arrives from the Plouto server, which the threat model (C2)
+ * treats as untrusted input. A target like ``../../../tmp/x`` joined onto
+ * the skills dir escapes ~/.claude. The substrate's allowed-root check
+ * catches escapes too, but this stops contained-but-wrong nesting
+ * (``a/b``) and gives a clearer error at the boundary. See C3.2 / C7.1.
+ */
 function assertSafeSegment(name: string, kind: string): string {
   if (typeof name !== "string" || name.length === 0 || name.length > 128) {
     throw new Error(`unsafe ${kind} target: empty or over 128 chars`);
@@ -65,32 +86,14 @@ function assertSafeSegment(name: string, kind: string): string {
   return name;
 }
 
-/**
- * Resolve ``~/.claude/skills/<target>`` after validating ``target`` is a
- * single segment, then re-check the resolved path is inside the config
- * root as defense-in-depth (catches a symlinked skills dir or any future
- * loosening of the segment check). Uses ``claudeHome()`` so it honors
- * ``CLAUDE_CONFIG_DIR`` the same way the rest of boost does.
- */
-function skillDir(target: string): string {
-  const safe = assertSafeSegment(target, "skill");
-  const dir = join(claudeHome(), "skills", safe);
-  return assertWithinAllowedRoots(dir, [claudeHome()]);
+function strategyIdFor(action: StrategyAction): string {
+  return action.strategy_id || `plouto:${action.kind}:${action.target}`;
 }
 
-const SKILL_PLACEHOLDER_NOTE = `\
-<!--
-This skill was installed by the Plouto boost plugin's SessionStart hook
-on behalf of a workspace strategy. Phase 1 of the enforcement layer
-writes only this placeholder so the directory exists and Claude Code
-sees the SKILL.md — the full skill payload pull from the source repo
-lands in Phase 2.
--->`;
-
-export function applyAction(
+export async function applyAction(
   action: StrategyAction,
-  ctx: { cwd: string },
-): AppliedAction {
+  ctx: ApplyCtx,
+): Promise<AppliedAction> {
   if (!action.in_cohort || action.op === "no-op") {
     return _receipt(action, "skipped", undefined);
   }
@@ -101,14 +104,19 @@ export function applyAction(
       return _receipt(action, "applied");
     }
     if (action.kind === "skill" && action.op === "remove") {
-      removeSkill(action.target);
-      return _receipt(action, "applied");
+      const op = await removeSkill(action.target, ctx.db, strategyIdFor(action));
+      if (!op) return _receipt(action, "skipped", "skill not present");
+      const r = _receipt(action, "applied");
+      r.operation_id = op.operationId;
+      return r;
     }
     if (action.kind === "model" && action.op === "recommend") {
-      recommendModel(action.target, ctx.cwd);
-      return _receipt(action, "applied");
+      const op = await recommendModel(action.target, ctx.cwd, ctx.db, strategyIdFor(action));
+      const r = _receipt(action, "applied");
+      r.operation_id = op.operationId;
+      return r;
     }
-    // mcp / claude_md / prompt — not enforced in phase 1.
+    // mcp / claude_md / prompt — not enforced in this plugin version.
     return _receipt(action, "skipped", "kind not enforced in this plugin version");
   } catch (err) {
     return _receipt(action, "failed", (err as Error).message);
@@ -119,68 +127,93 @@ export function applyAction(
 // Per-kind appliers
 // ---------------------------------------------------------------------------
 
+/**
+ * Install a placeholder skill. Direct write (not yet through the substrate
+ * — see file header). Non-destructive: never overwrites a hand-edited skill,
+ * only ever writes a placeholder.
+ */
 function installSkill(target: string, source: string | null, rationale: string): void {
-  const dir = skillDir(target);
+  const name = assertSafeSegment(target, "skill");
+  const dir = join(claudeHome(), "skills", name);
+  // Defense-in-depth: confirm the resolved dir is inside the config root.
+  assertWithinAllowedRoots(dir, [claudeHome()]);
   mkdirSync(dir, { recursive: true });
   const skillMd = join(dir, "SKILL.md");
-  // Don't stomp a real, hand-edited skill if the user already has one
-  // at the same target name — write only if missing.
   if (existsSync(skillMd)) {
     const existing = readFileSync(skillMd, "utf8");
-    if (!existing.includes("Plouto boost plugin's SessionStart hook")) {
-      // Real skill exists — leave it alone. Caller sees this as
-      // status="applied" but the file was untouched; that's correct
-      // because the skill is effectively present on the engineer's
-      // machine, just not via us.
+    if (!existing.includes(PLACEHOLDER_MARKER)) {
+      // Real, hand-edited skill — leave it alone. The skill is effectively
+      // present on the engineer's machine, just not via us; report applied.
       return;
     }
   }
   const body =
-    `---\nname: ${target}\ndescription: Rolled out by Plouto. ${rationale || ""}\n---\n\n` +
+    `---\nname: ${name}\ndescription: Rolled out by Plouto. ${rationale || ""}\n---\n\n` +
     SKILL_PLACEHOLDER_NOTE +
     (source ? `\n\n<!-- source: ${source} -->\n` : "\n");
   writeFileSync(skillMd, body, "utf8");
 }
 
-function removeSkill(target: string): void {
-  const dir = skillDir(target);
-  if (!existsSync(dir)) return;
-  rmSync(dir, { recursive: true, force: true });
+/**
+ * Remove a skill — reversibly. Archives ~/.claude/skills/<name>/ into
+ * ~/.boost/archived-skills/ via the substrate (SHA-256 backup + operation
+ * record), so `boost revert <op>` restores it. Replaces the old rm -rf.
+ * Returns the Operation, or null if the skill isn't present (no-op).
+ */
+async function removeSkill(
+  target: string,
+  db: BunDatabase,
+  strategyId: string,
+): Promise<Operation | null> {
+  const name = assertSafeSegment(target, "skill");
+  const from = join(claudeHome(), "skills", name);
+  if (!existsSync(from)) return null;
+  // Archive destination must live under ~/.boost/ (the substrate enforces
+  // this too). Timestamp-suffixed so repeated removes don't collide and so
+  // revert's `<base>-*` archive sweep can find it.
+  const to = join(archivedSkillsDir(), `${name}-${Date.now()}`);
+  const fix: Fix = { kind: "archive-directory", payload: { fromPath: from, toPath: to } };
+  return applyFix(fix, {
+    db,
+    strategyId,
+    strategyVersion: STRATEGY_VERSION,
+    predictedSavings: null,
+  });
 }
 
-function recommendModel(target: string, cwd: string): void {
-  // ``target`` (the model id) is written as a JSON *value*, so
-  // JSON.stringify escapes it — not a path-injection vector. Still
-  // reject control chars / absurd lengths so a bad policy can't write
-  // garbage into the engineer's settings.
+/**
+ * Recommend a model — reversibly. Sets ``model`` in
+ * <cwd>/.claude/settings.local.json via the substrate's settings-key
+ * primitive (which records the prior value, so revert restores or removes
+ * it). The model id is a JSON value (escaped on write), so it's not a
+ * path-injection vector — but reject control chars / absurd lengths.
+ */
+async function recommendModel(
+  target: string,
+  cwd: string,
+  db: BunDatabase,
+  strategyId: string,
+): Promise<Operation> {
   if (typeof target !== "string" || target.length === 0 || target.length > 128 || hasControlChar(target)) {
     throw new Error(`unsafe model target: ${JSON.stringify(target)}`);
   }
-  // ``cwd`` is the local hook payload (Claude Code's project dir), not
-  // server input — but guard anyway: only write inside the user's home
-  // tree, never to a project parked in a system location.
-  const projectDir = resolve(cwd);
-  const home = homedir();
-  if (projectDir !== home && !projectDir.startsWith(home + sep)) {
-    throw new Error(`refusing model recommendation outside home tree: ${projectDir}`);
-  }
-  // Write to <cwd>/.claude/settings.local.json — project-scoped so the
-  // recommendation only applies inside the workspace this hook fired
-  // for. Merge with existing JSON (don't stomp).
-  const dir = join(projectDir, ".claude");
-  mkdirSync(dir, { recursive: true });
-  const path = assertWithinAllowedRoots(join(dir, "settings.local.json"), [projectDir]);
-  let existing: Record<string, unknown> = {};
-  if (existsSync(path)) {
-    try {
-      existing = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-    } catch {
-      // Malformed JSON — overwrite. Better than refusing to enforce.
-      existing = {};
-    }
-  }
-  existing.model = target;
-  writeFileSync(path, JSON.stringify(existing, null, 2) + "\n", "utf8");
+  // The substrate's settings-key primitive tolerates a missing file but not
+  // a missing parent dir; a fresh project has no .claude/. cwd is the local
+  // hook payload (not server input), so creating it here is safe. applyFix
+  // still validates the settings path against the allowed write roots.
+  const claudeDir = join(resolve(cwd), ".claude");
+  mkdirSync(claudeDir, { recursive: true });
+  const settingsPath = join(claudeDir, "settings.local.json");
+  const fix: Fix = {
+    kind: "modify-settings-key",
+    payload: { filePath: settingsPath, jsonPath: "model", newValue: target },
+  };
+  return applyFix(fix, {
+    db,
+    strategyId,
+    strategyVersion: STRATEGY_VERSION,
+    predictedSavings: null,
+  });
 }
 
 // ---------------------------------------------------------------------------

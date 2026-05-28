@@ -8,6 +8,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.2.1] — 2026-05-28
 
+### Changed
+
+- **Enforcement writes now route through the reversible apply substrate.**
+  `enforce.ts` was a parallel reimplementation of the same three operations
+  `src/apply/` already provides (`modify-file` / `modify-settings-key` /
+  `archive-directory`) — but with raw `fs` calls, no backup, and no revert
+  trail. Collapsed the two that map cleanly onto existing substrate
+  primitives:
+  - `skill remove` → `archive-directory`: **reversible**, replacing the
+    destructive `rm -rf`. A bad removal is now undoable with `boost revert`.
+  - `model recommend` → `modify-settings-key`: **reversible** (records the
+    prior `model` value).
+  Receipts carry the resulting `operation_id` back to Plouto. `skill install`
+  still writes directly (it only creates a non-destructive placeholder and
+  the substrate can't yet *create* a file with delete-on-revert) — tracked
+  in threat-model.md C7.2.
+
 ### Security
 
 - **Path-traversal hardening on the enforcement path.** `StrategyAction.target`

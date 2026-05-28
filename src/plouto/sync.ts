@@ -20,6 +20,7 @@
 import { applyAction } from "./enforce.ts";
 import { PloutoClient, type AppliedAction } from "./client.ts";
 import { loadPloutoConfig } from "./config.ts";
+import { LoopDatabase } from "../db.ts";
 
 interface HookInput {
   session_id?: string;
@@ -57,14 +58,34 @@ export async function runPloutoSync(opts: SyncOptions = {}): Promise<void> {
     return;
   }
 
+  // Enforcement writes route through the reversible apply substrate, which
+  // needs boost's local DB (operations log + backups). Open it best-effort:
+  // if it's unavailable we skip this sweep rather than break Claude Code
+  // startup — next session retries.
+  let loopDb: LoopDatabase;
+  try {
+    loopDb = LoopDatabase.open();
+  } catch (err) {
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ status: "skipped", reason: "db_unavailable" }) + "\n");
+    } else if (opts.debug) {
+      process.stderr.write(`plouto-sync: db open failed, skipping: ${(err as Error).message}\n`);
+    }
+    return;
+  }
+
   const receipts: AppliedAction[] = [];
-  // Older Plouto deploys don't return an ``actions`` array — they only
-  // shipped the legacy ``policy_model`` fields. Treat missing as empty
-  // so the plugin tolerates straddling a deploy.
-  for (const action of response.actions ?? []) {
-    const receipt = applyAction(action, { cwd });
-    if (sessionId) receipt.session_id = sessionId;
-    receipts.push(receipt);
+  try {
+    // Older Plouto deploys don't return an ``actions`` array — they only
+    // shipped the legacy ``policy_model`` fields. Treat missing as empty
+    // so the plugin tolerates straddling a deploy.
+    for (const action of response.actions ?? []) {
+      const receipt = await applyAction(action, { cwd, db: loopDb.db });
+      if (sessionId) receipt.session_id = sessionId;
+      receipts.push(receipt);
+    }
+  } finally {
+    loopDb.close();
   }
 
   await client.reportApplied(receipts, sessionId);

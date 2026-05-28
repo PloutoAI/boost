@@ -50,6 +50,13 @@ export interface AppliedAction {
   status: "applied" | "failed" | "skipped" | "out_of_cohort";
   error?: string;
   session_id?: string;
+  /**
+   * Set when the action ran through boost's reversible apply substrate —
+   * the local `operations` row id, so `boost revert <id>` can undo it and
+   * Plouto can surface "revertable" in the rollout view. Absent for the
+   * still-direct install path and for skipped/failed receipts.
+   */
+  operation_id?: string;
 }
 
 const REQUEST_TIMEOUT_MS = 5_000;

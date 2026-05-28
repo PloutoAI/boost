@@ -218,19 +218,30 @@ re-checked with `assertWithinAllowedRoots([claudeHome()])` as
 defense-in-depth. Model-recommend validates the model id and refuses to
 write outside `$HOME`. **Tests:** `tests/plouto/enforce.test.ts`.
 
-### C7.2 No local revert trail for enforced changes (known gap)
+### C7.2 Local revert trail for enforced changes (mostly closed)
 
-The enforcement path writes with raw `fs` calls, **not** through the
-`apply/` substrate — so enforced skill installs / model recommendations
-have no SHA-256 backup and are **not** undoable via `boost revert`. A bad
-policy push can't be rolled back locally; the engineer's only recourse is
-the server retracting it. Tracked: route enforcement writes through the
-backup/revert pipeline so the networked path gets the same reversibility
-the local path has. Until then, enforced kinds are deliberately limited
-to ones with contained blast radius (placeholder SKILL.md, project-scoped
-`settings.local.json:model`). As enforcement grows to push real skill
-payloads, MCP config, and CLAUDE.md, each new kind must land with both
-the C7.1 input validation AND the C7.2 revert trail.
+Enforcement writes now route through the `apply/` substrate for the two
+operations that map onto it, so they get SHA-256 backup + a recorded
+operation + `boost revert`:
+
+- `skill remove` → `archive-directory` — **reversible** (replaces the old
+  `rm -rf`, which destroyed data unrecoverably). The receipt carries the
+  `operation_id` back to Plouto.
+- `model recommend` → `modify-settings-key` — **reversible** (records the
+  prior value; revert restores or removes it).
+
+**Remaining gap:** `skill install` still writes directly. The substrate's
+`modify-file` primitive modifies *existing* files; creating a new file
+with delete-on-revert is unbuilt. Install is non-destructive (it only ever
+writes a placeholder SKILL.md and never overwrites a hand-edited skill), so
+the gap is contained — but it is a gap. Closing it means teaching
+`modify-file` create-or-modify semantics and `restoreFile` an
+afterHash-guarded delete-on-revert.
+
+As enforcement grows to push real skill payloads, MCP config, and CLAUDE.md,
+each new kind must land with BOTH the C7.1 input validation AND a C7.2
+revert trail — and the richer kinds (which overwrite real content) cannot
+ship on a direct write the way the install placeholder does.
 
 ### C7.3 Token at rest
 

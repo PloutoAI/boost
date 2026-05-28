@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-05-28
+
+### Removed
+
+- **Localhost-redirect OAuth flow (`src/plouto/oauth.ts`).** Dead since
+  `install.ts` switched to the device-code flow (`device-auth.ts`) in
+  0.2.0 — it had no callers and no tests. The localhost-redirect pattern
+  assumed the browser could reach `http://localhost:P` on the same box
+  the CLI runs on, which is false over SSH (where most pilots run Claude
+  Code). See [ADR 003](docs/adr/003-device-code-auth.md) for the full
+  rationale. Device-code (RFC 8628) is now the sole browser auth path.
+
+### Fixed
+
+- Stale comment in `install.ts` that still described the
+  localhost-redirect flow; the code runs device-code.
+
 ## [0.2.0] — 2026-05-22
 
 ### Added — Plouto enforcement layer

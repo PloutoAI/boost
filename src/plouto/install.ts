@@ -38,10 +38,10 @@ export interface InstallOptions {
   managed?: boolean;
   debug?: boolean;
   /**
-   * When ``--token`` is not provided, default to running the OAuth
-   * localhost-redirect flow so the engineer never copy-pastes a token.
-   * Set to false on CI / non-interactive contexts where opening a
-   * browser doesn't make sense.
+   * When ``--token`` is not provided, default to running the
+   * device-code OAuth flow (RFC 8628) so the engineer never
+   * copy-pastes a token. Set to false on CI / non-interactive
+   * contexts where opening a browser doesn't make sense.
    */
   noAuth?: boolean;
 }
